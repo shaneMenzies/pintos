@@ -14,7 +14,7 @@ typedef struct terminal {
     unsigned int index;
 } terminal;
 
-terminal create_terminal(uint32_t fg_color, uint32_t bg_color, 
+terminal* create_terminal(uint32_t fg_color, uint32_t bg_color, 
                          uint8_t ega_attributes, unsigned int max_chars);
 
 void terminal_write(terminal* target_terminal, char string[]);

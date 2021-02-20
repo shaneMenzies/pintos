@@ -12,7 +12,7 @@
 #include "display.h"
 #include "multiboot.h"
 #include "terminal.h"
-//#include "memory.h"
+#include "memory.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -30,19 +30,14 @@ void halt_and_catch_fire() {
     while (1) {}
 }
 
-terminal* terminal_0;
-
 void kernel_main() {
     struct mb_info* mb_addr = (struct mb_info*) return_ebx();
 
+    memory_init(mb_addr);
+
     framebuffer_init(mb_addr);
 
-    terminal_0->default_fg = 0xffffff;
-    terminal_0->default_bg = 0x000000;
-    terminal_0->default_ega = 0x0f;
-    terminal_0->max_chars = 256000;
-    terminal_0->index = 0;
-
+    terminal* terminal_0 = create_terminal(0xffffff, 0x000000, 0x0f, 256000);
 
     char first_string[] = "Hi there, this should show up well!";
 

@@ -15,15 +15,15 @@
 #include "libk.h"
 
 /**
- * @brief Create a terminal object
+ * @brief Create a new terminal object
  * 
  * @param fg_color          Default foreground color 
  * @param bg_color          Default background color
  * @param ega_attributes    Default EGA colors
  * @param max_chars         Maximum characters for the terminal
- * @return terminal         New terminal structure ready to be written to
+ * @return terminal*        Pointer to the new terminal
  */
-terminal create_terminal(uint32_t fg_color, uint32_t bg_color, uint8_t ega_attributes, unsigned int max_chars) {
+terminal* create_terminal(uint32_t fg_color, uint32_t bg_color, uint8_t ega_attributes, unsigned int max_chars) {
     terminal* new_terminal = (terminal*) malloc(sizeof(terminal));
 
     new_terminal->default_ega = ega_attributes;
@@ -34,7 +34,7 @@ terminal create_terminal(uint32_t fg_color, uint32_t bg_color, uint8_t ega_attri
 
     new_terminal->text[0] = '\0';
 
-    return *new_terminal;
+    return new_terminal;
 }
 
 /**

@@ -51,3 +51,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 memprint
+workspace.code-workspace
+pintos.bin
+pintos.iso

@@ -1,2 +1,30 @@
 TODO: Error Management System
+    Leave error code at 0x0
+    How to signal an interrupt?
+        Write to terminal?
+            Which terminal though?
+                specific error terminal
+                main terminal
+                >>kernel-wide active terminal!
+
+            How?
+                when error encountered, write error code to 0x0
+                    code + function name
+                        extra info too?
+
+    struct error {
+        uint32_t code;
+        char caller[128];
+    }
+
+TODO: PS/2 Parsing and Interrupts
+    Actual terminal functionality?!?!?!
+
+TODO: Virtual Memory/Paging
+
+TODO: Long Mode/x86_64
+
+TODO: C++ support?
+    Refactoring into classes and namespaces?
+
 

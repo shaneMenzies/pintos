@@ -41,6 +41,71 @@ bookmark mmap_to_mark (uint32_t* mmap_addr) {
 }
 
 /**
+ * @brief Finds the position of the null marker in kernel_mark
+ * 
+ * @param start     Place to start search
+ * @return int      Position of first null marker
+ */
+int find_null_mark(int start) {
+
+    int index = start;
+    while (1) {
+        
+        if (kernel_mark[index].start == 0 
+            && kernel_mark[index].end == 0) {
+                break;
+        } else {
+            index++;
+        }
+    }
+
+    return index;
+}
+
+/**
+ * @brief Cycles the kernel_marks up, leaving a space the size of count
+ *        at index start in kernel_mark
+ * 
+ * @param start     Index in kernel_mark to start cycling up
+ * @param count     Times to cycle the target marks up
+ */
+void cycle_marks_up(int start, int count) {
+
+    // Find end of marks
+    int index = find_null_mark(start);
+
+    // Shift the marks up
+    for (; index >= start; index--) {
+
+            kernel_mark[index] = kernel_mark[index - count];
+            if (index == start) {
+                break;
+            }
+    }
+}
+
+/**
+ * @brief Cycles the marks from start to the end of the marks down count times
+ * 
+ * @param start     Index to start cycling down at 
+ *                  (note: the mark here will be erased, and replaced by
+ *                   the one count times in front of it)
+ * @param count     Marks to cycle down
+ */
+void cycle_marks_down(int start, int count) {
+
+    // Find where the null marker will end up, in order to stop there
+    int end = find_null_mark(start) - count;
+
+    int index = start;
+
+    // Shift the marks down
+    for (; index <= end; index++) {
+        kernel_mark[index] = kernel_mark[index + count];
+    }
+}
+
+/**
  * @brief Initializes the kernel bookmarks from a multiboot structure
  * 
  * @param mb_addr   Pointer to a mb_info structure
@@ -112,14 +177,8 @@ void* malloc(size_t size) {
                 // Save changes made to target mark
                 kernel_mark[index] = target_mark;
 
-                // Shift all marks below new one
-                for (uint32_t reverse_index = (256 - index); 
-                     reverse_index >= index; reverse_index--) {
-                        kernel_mark[reverse_index] = kernel_mark[reverse_index - 1];
-                        if (reverse_index == index) {
-                            break;
-                        }
-                }
+                // Cycle the marks up 1
+                cycle_marks_up(index, 1);                
 
                 // Insert new mark
                 kernel_mark[index] = new_mark;
@@ -167,10 +226,7 @@ void* talloc(void* target_address, size_t size) {
     if (!(target_mark.end >= target_mark.start)) {
         // If we aren't replacing this mark, then
         // shift all marks forward
-        for (uint32_t reverse_index = (256 - index); 
-             reverse_index >= index; reverse_index--) {
-                kernel_mark[reverse_index] = kernel_mark[reverse_index - 1];
-        }
+        cycle_marks_up(index, 1);
     }
 
     kernel_mark[index] = new_mark;
@@ -186,11 +242,10 @@ void* talloc(void* target_address, size_t size) {
 
             // If this mark is entirely encapsulated by new one, remove it
             if (target_mark.end <= target_mark.start) {
-                for (uint32_t forward_index = index; forward_index < 256; 
-                    forward_index++) {
-                        kernel_mark[forward_index] = kernel_mark[forward_index + 1];
-                }
+                
+                cycle_marks_down(index, 1);
             }
+
         } else if (target_mark.start < new_mark.end) {
             continue;
         } else {
@@ -227,6 +282,19 @@ void free(void* target_address) {
         index++;
     }
 
-    // TODO: MERGE NEARBY FREE MARKS
     target_mark.available_flag = true;
+
+    // Merge nearby free marks
+    if (kernel_mark[index + 1].available_flag) {
+        // Merge mark in front
+        target_mark.end = kernel_mark[index + 1].end;
+        cycle_marks_down((index + 1), 1);
+    }
+
+    if (kernel_mark[index - 1].available_flag) {
+        target_mark.start = kernel_mark[index - 1].start;
+        cycle_marks_down((index - 1), 1);
+    }
+
+    kernel_mark[index] = target_mark;
 }

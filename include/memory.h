@@ -16,6 +16,10 @@ typedef struct bookmark {
 
 bookmark mmap_to_mark(uint32_t* mmap_addr);
 
+void cycle_marks_up(int start, int count);
+
+void cycle_marks_down(int start, int count);
+
 void memory_init(struct mb_info* mb_addr);
 
 void* malloc(size_t size);

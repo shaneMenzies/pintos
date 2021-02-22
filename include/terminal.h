@@ -17,8 +17,12 @@ typedef struct terminal {
 terminal* create_terminal(uint32_t fg_color, uint32_t bg_color, 
                          uint8_t ega_attributes, unsigned int max_chars);
 
-void terminal_write(terminal* target_terminal, char string[]);
+void terminal_write(terminal* target_terminal, char* string);
 
 void terminal_print(terminal* target_terminal);
+
+uint16_t stringify(char* target_buffer, int number, uint8_t base);
+
+void tprintf(terminal* target_term, char* format, ...);
 
 #endif

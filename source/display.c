@@ -40,9 +40,6 @@ void framebuffer_init(struct mb_info* mb_addr) {
         fb.depth = mb_addr->framebuffer_bpp;
         fb.pixel_size = mb_addr->framebuffer_pitch / mb_addr->framebuffer_width;
 
-        // Make sure that the framebuffer is allocated in memory
-        talloc(fb.address, (size_t)(fb.pitch * fb.height));
-
         // Set the correct info into the framebuffer info structure
         if (mb_addr->framebuffer_type == 0) {
             fb.palette_color = true;
@@ -494,16 +491,3 @@ void fb_blank(uint32_t color) {
 
 /* #endregion */
 
-/**
- * @brief Converts a number into characters in the target char array
- * 
- * @param target_string     Char buffer for output to be placed in
- * @param number            Number to convert
- */
-void stringify(char target_string[], uint32_t number) {
-
-    for (int i = 11; i >= 0; i--) {
-        target_string[i] = (char)((number % 10) + 0x30);
-        number /= 10;
-    }
-}

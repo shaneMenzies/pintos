@@ -48,15 +48,16 @@ bookmark mmap_to_mark (uint32_t* mmap_addr) {
 void memory_init(struct mb_info* mb_addr) {
 
     uint32_t mmap_length = mb_addr->mmap_length;
-    unsigned char* mmap_index = (unsigned char*)mb_addr->mmap_addr;
+    unsigned char* mmap_index = (unsigned char*)(mb_addr->mmap_addr);
     unsigned char* mmap_end = (unsigned char*)(mmap_index + mmap_length);
 
     uint16_t kernel_index = 0;
     
     while (mmap_index < mmap_end) {
-        uint32_t size = *(uint32_t*)mmap_index;
+        uint32_t size = (*(uint32_t*)mmap_index + 4);
         kernel_mark[kernel_index] = mmap_to_mark((uint32_t*)mmap_index);
-        mmap_index += size;
+        mmap_index = (unsigned char*) ((unsigned int)mmap_index + size);
+        kernel_index++;
     }
 
     // Finish kernel marks with a null terminator
@@ -103,15 +104,21 @@ void* malloc(size_t size) {
 
             target_mark.start = new_mark.end + 1;
             // If the target mark has been used up entirely, just replace it
-            if (target_mark.end >= target_mark.start) {
+            if (target_mark.end <= target_mark.start) {
                 kernel_mark[index] = new_mark;
                 return new_mark.start;
             } else {
+
+                // Save changes made to target mark
+                kernel_mark[index] = target_mark;
 
                 // Shift all marks below new one
                 for (uint32_t reverse_index = (256 - index); 
                      reverse_index >= index; reverse_index--) {
                         kernel_mark[reverse_index] = kernel_mark[reverse_index - 1];
+                        if (reverse_index == index) {
+                            break;
+                        }
                 }
 
                 // Insert new mark
@@ -138,7 +145,8 @@ void* talloc(void* target_address, size_t size) {
 
     // Find mark to split up
     while (1) {
-        if (kernel_mark[index].start <= target_address) {
+        if (kernel_mark[index].start <= target_address 
+            && kernel_mark[index].end >= target_address) {
             break;
         }
         index++;

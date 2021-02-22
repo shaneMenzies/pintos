@@ -66,6 +66,4 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color,
 
 void fb_blank(uint32_t color);
 
-void stringify(char target_string[], uint32_t number);
-
 #endif

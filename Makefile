@@ -7,7 +7,7 @@ CFG_DIR := config
 TOOLCHAIN = i686-elf
 TOOLCHAIN_64 := x86_64-elf
 
-C_FLAGS := -I$(INCLUDE_DIR) -Wall -Wextra -nostdlib -O0 -ffreestanding -g
+C_FLAGS := -I$(INCLUDE_DIR) -Wall -Wextra -nostdlib -Og -ffreestanding -g
 LD_FLAGS := -nostdlib -Map kernel.map -L. -lgcc -g
 
 LINK_SCRIPT := $(CFG_DIR)/linker.ld

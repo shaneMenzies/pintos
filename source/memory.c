@@ -9,6 +9,7 @@
 
 #include "memory.h"
 
+#include "kernel.h"
 #include "multiboot.h"
 
 #include <stddef.h>
@@ -129,6 +130,9 @@ void memory_init(struct mb_info* mb_addr) {
     kernel_mark[kernel_index].start = 0;
     kernel_mark[kernel_index].end = 0;
     kernel_mark[kernel_index].available_flag = 0;
+
+    // Allocate first 4 bytes of memory for error codes
+    talloc(0, 4);
 }
 
 /**

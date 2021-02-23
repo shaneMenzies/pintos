@@ -16,6 +16,8 @@ typedef struct bookmark {
 
 bookmark mmap_to_mark(uint32_t* mmap_addr);
 
+int find_null_mark(int start);
+
 void cycle_marks_up(int start, int count);
 
 void cycle_marks_down(int start, int count);

@@ -18,6 +18,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+uint32_t* error_addr = 0;
+
 extern uint32_t return_ebx();
 
 /**
@@ -43,32 +45,18 @@ void kernel_main() {
     terminal_0->default_ega= 0b00001111;
     terminal_0->max_chars = 2560000;
 
-    int* test_number = malloc(32);
-    char test_string[] = "Test Test. This is a test";
-    int decimal = -100;
-    unsigned int udecimal = 100;
-    unsigned int odecimal = 64;
-    unsigned int xdecimal = 256;
-    char test_char = '#';
-    char first_string[] = "This is a test, please remain calm.\n"
-                          "Decimal: %d\n"
-                          "Unsigned Decimal: %u\n"
-                          "Octal: %o\n"
-                          "Hexadecimal: %x\n"
-                          "Character: %c\n"
-                          "Percent: %%\n"
-                          "String: %s\n"
-                          "Pointer: %p%n\n"
-                          "Hurray! Printf works!";
-
-    tprintf(terminal_0, first_string, decimal, udecimal, odecimal,
-            xdecimal, test_char, test_string, test_number, test_number);
-
-    tprintf(terminal_0, "Characters printed: %d", *test_number);
-
-    free(test_number);
-
-    terminal_print(terminal_0);
+    // Quick memory test
+    for (int i = 10; i <= 2048; i += 256) {
+        void* pointer = malloc(i);
+        if (pointer == 0) {
+            tprintf(terminal_0, "Uh Oh, something went wrong at %d", i);
+        } else {
+            tprintf(terminal_0, "Allocation of %d was successful", i);
+            free(pointer);
+        }
+        tprintf(terminal_0, "After cleanup, %d marks have been used", find_null_mark(0));
+        terminal_print(terminal_0);
+    }
 
     while(1) {}
 }

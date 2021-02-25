@@ -226,13 +226,17 @@ void* talloc(void* target_address, size_t size) {
     // Correct the target mark being split
     target_mark.end = (target_address - 1);
 
-    // Place new mark
-    if (!(target_mark.end >= target_mark.start)) {
+    // Check if the target mark still needs to exist
+    if (target_mark.end >= target_mark.start) {
+        // Target mark does need to be placed back
+        kernel_mark[index] = target_mark;
+
         // If we aren't replacing this mark, then
         // shift all marks forward
         cycle_marks_up(index, 1);
     }
 
+    // Place new mark
     kernel_mark[index] = new_mark;
 
     // Check if the marks in front have overlap

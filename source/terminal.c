@@ -65,9 +65,7 @@ void terminal_write(terminal* target_terminal, char* string) {
        target_char = string[string_index];
     }
 
-    // Adds newline and null termination 
-    target_terminal->text[terminal_index] = '\n';
-    terminal_index++;
+    // Adds null termination 
     target_terminal->text[terminal_index] = '\0';
 
     target_terminal->index = terminal_index;

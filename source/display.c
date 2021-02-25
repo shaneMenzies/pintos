@@ -128,6 +128,7 @@ void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]) {
     while(1) {
         char target_char = *(string + index);
 
+        // Identify special characters
         if (target_char == '\0') {
             return;
         } else if (target_char == '\n') {
@@ -146,9 +147,16 @@ void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]) {
             x_cnt++;
         }
         
+        // Wrap around if it's hit the edge of the screen
         if (x_cnt > fb.width) {
             x_cnt = x;
             y_cnt++;
+        }
+
+        // Wrap around if it's hit the bottom of the screen
+        if (y_cnt > fb.height) {
+            y_cnt = y;
+            ega_blank(ega_attributes);
         }
 
         index++;
@@ -471,6 +479,7 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t 
         // If reached end of screen, wrap around vertically
         if (y_i >= fb.height) {
             y_i = y;
+            fb_blank(bg_color);
         }
 
         char_it++;

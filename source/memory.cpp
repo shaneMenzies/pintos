@@ -7,15 +7,41 @@
  * 
  */
 
+
 #include "memory.h"
 
-#include "kernel.h"
 #include "multiboot.h"
 
 #include <stddef.h>
 #include <stdint.h>
 
 bookmark kernel_mark[256];
+
+void* operator new(size_t size) {
+    return malloc(size);
+}
+ 
+void* operator new[](size_t size) {
+    return malloc(size);
+}
+ 
+void operator delete(void* p) {
+    free(p);
+}
+ 
+void operator delete[](void* p) {
+    free(p);
+}
+
+void operator delete(void* p, long unsigned int size) {
+    (void) size;
+    free(p);
+}
+
+void operator delete[](void* p, long unsigned int size) {
+    (void) size;
+    free(p);
+}
 
 /**
  * @brief Converts a mmap size/info structure into a bookmark
@@ -26,7 +52,7 @@ bookmark kernel_mark[256];
 bookmark mmap_to_mark (uint32_t* mmap_addr) {
 
     void* start = (void*)(*(void**)(mmap_addr + 1));
-    void* end = (void*)(start + (unsigned int)(*(void**)(mmap_addr + 3)));
+    void* end = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(start) + reinterpret_cast<uintptr_t>(*((void**)(mmap_addr + 3))));
     uint32_t flags = *(mmap_addr + 5);
 
     bookmark return_mark;
@@ -160,18 +186,20 @@ void* malloc(size_t size) {
             continue;
         }
 
-        unsigned int mark_size = (unsigned int)(target_mark.end 
-                                                - target_mark.start);
+        unsigned int mark_size = ((unsigned int)target_mark.end 
+                                  - (unsigned int)target_mark.start);
         if (mark_size >= size) {
             // This mark is big enough
 
             // Split target mark into two
             bookmark new_mark;
             new_mark.start = target_mark.start;
-            new_mark.end = (void*)(target_mark.start + size);
+            new_mark.end = reinterpret_cast<void*>(
+                reinterpret_cast<uintptr_t>(target_mark.start) + size);
             new_mark.available_flag = false;
 
-            target_mark.start = new_mark.end + 1;
+            target_mark.start = reinterpret_cast<void*>(
+                reinterpret_cast<uintptr_t>(new_mark.end) + 1);
             // If the target mark has been used up entirely, just replace it
             if (target_mark.end <= target_mark.start) {
                 kernel_mark[index] = new_mark;
@@ -220,11 +248,13 @@ void* talloc(void* target_address, size_t size) {
     // Make new mark
     bookmark new_mark;
     new_mark.start = target_address;
-    new_mark.end = (void*) (target_address + size);
+    new_mark.end = reinterpret_cast<void*>(
+        reinterpret_cast<uintptr_t>(target_address) + size);
     new_mark.available_flag = false;
 
     // Correct the target mark being split
-    target_mark.end = (target_address - 1);
+    target_mark.start = reinterpret_cast<void*>(
+        reinterpret_cast<uintptr_t>(new_mark.end) + 1);
 
     // Check if the target mark still needs to exist
     if (target_mark.end >= target_mark.start) {
@@ -246,7 +276,8 @@ void* talloc(void* target_address, size_t size) {
         // If the mark is at all inside the new one, and isn't allocated,
         // then fix it's properties
         if (target_mark.start < new_mark.end && target_mark.available_flag) {
-            target_mark.start = (void*)(new_mark.end + 1);
+            target_mark.start = reinterpret_cast<void*>(
+                reinterpret_cast<uintptr_t>(new_mark.end) + 1);
 
             // If this mark is entirely encapsulated by new one, remove it
             if (target_mark.end <= target_mark.start) {

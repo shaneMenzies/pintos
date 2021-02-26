@@ -194,15 +194,20 @@ void draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
         return;
     }
 
-    unsigned char* target_address = (unsigned char*)(fb.address + (y * fb.pitch) + (x * fb.pixel_size));
+    unsigned char* target_address = (unsigned char*)((uint32_t)fb.address + (y * fb.pitch) + (x * fb.pixel_size));
 
     switch (fb.depth) {
         case 8:
             *(uint8_t*) target_address = (uint8_t)(color & 0xff);
             break;
 
+        case 32:
+            // 32 bit color starts with an alpha value
+            ((uint8_t*)target_address)[3] = (unsigned char) 0xff;
+            /* fall through */
+
         case 24:
-            ((uint24_t*)target_address)->byte[2] = (unsigned char)((color & 0xff0000) >> 16);
+            ((uint8_t*)target_address)[2] = (unsigned char)((color & 0xff0000) >> 16);
             /* fall through */
 
         case 16:

@@ -38,9 +38,8 @@ stack_top:
 _start:
     mov $stack_top, %esp
 
-    call kernel_init
     call _init
-    call kernel_main
+    call call_kernel
     call _fini
 
     cli

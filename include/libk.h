@@ -3,6 +3,6 @@
 
 #include <stddef.h>
 
-void* memcpy(void* restrict dest_ptr, const void* restrict src_ptr, size_t size);
+void* memcpy(void* dest_ptr, const void* src_ptr, size_t size);
 
 #endif

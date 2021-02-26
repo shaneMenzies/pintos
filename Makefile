@@ -7,15 +7,14 @@ CFG_DIR := config
 TOOLCHAIN = i686-elf
 TOOLCHAIN_64 := x86_64-elf
 
-C_FLAGS := -I$(INCLUDE_DIR) -Wall -Wextra -nostdlib -Og -ffreestanding -g
+ASM_FLAGS := -g
+C_FLAGS := -I$(INCLUDE_DIR) -fomit-frame-pointer -Wall -Wextra -nostdlib -Og -ffreestanding -g
 CXX_FLAGS := $(C_FLAGS) -fno-exceptions -fno-rtti
 LD_FLAGS := -nostdlib -Map kernel.map -L. -lgcc -g
 
 LINK_SCRIPT := $(CFG_DIR)/linker.ld
 
-SRC_FILES := $(wildcard $(SOURCE_DIR)/*.c) $(wildcard $(SOURCE_DIR)/*.s)
-
-SRC_OBJS := $(patsubst $(SOURCE_DIR)/%.c, $(BUILD_DIR)/%.o, $(wildcard $(SOURCE_DIR)/*.c)) 
+SRC_OBJS := $(patsubst $(SOURCE_DIR)/%.cc, $(BUILD_DIR)/%.o, $(wildcard $(SOURCE_DIR)/*.cc)) 
 SRC_OBJS +=$(patsubst $(SOURCE_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(wildcard $(SOURCE_DIR)/*.cpp))
 SRC_OBJS +=$(patsubst $(SOURCE_DIR)/%.s, $(BUILD_DIR)/%.o, $(wildcard $(SOURCE_DIR)/*.s))
 
@@ -34,7 +33,6 @@ all: $(TARGET)
 .PHONY: all clean
 
 $(TARGET): $(OBJ_LINK_LIST) | $(BUILD_DIR)
-	$(info $(OBJ_LINK_LIST))
 	$(TOOLCHAIN)-ld -T $(LINK_SCRIPT) $(LD_FLAGS) $(OBJ_LINK_LIST) -o $(TARGET)
 
 
@@ -43,19 +41,24 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)/constructors
 
 $(CRT_I): $(SOURCE_DIR)/constructors/crti.s | $(BUILD_DIR)
-	$(TOOLCHAIN)-gcc $(C_FLAGS) -c $< -o $@
+	$(info $<)
+	$(TOOLCHAIN)-as $(ASM_FLAGS) $< -o $@
 
 $(CRT_N): $(SOURCE_DIR)/constructors/crtn.s | $(BUILD_DIR)
-	$(TOOLCHAIN)-gcc $(C_FLAGS) -c $< -o $@
+	$(info $<)
+	$(TOOLCHAIN)-as $(ASM_FLAGS) $< -o $@
 
-$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c | $(BUILD_DIR)
-	$(TOOLCHAIN)-gcc $(C_FLAGS) -c $< -o $@
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cc | $(BUILD_DIR)
+	$(info $<)
+	$(TOOLCHAIN)-g++ $(CXX_FLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp | $(BUILD_DIR)
+	$(info $<)
 	$(TOOLCHAIN)-g++ $(CXX_FLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.s | $(BUILD_DIR)
-	$(TOOLCHAIN)-as $< -o $@
+	$(info $<)
+	$(TOOLCHAIN)-as $(ASM_FLAGS) $< -o $@
 
 clean:
 	@$(RM) -rv $(BUILD_DIR)

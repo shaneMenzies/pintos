@@ -11,7 +11,7 @@
 
 #include <stddef.h>
 
-void* memcpy(void* restrict dest_ptr, const void* restrict src_ptr, 
+void* memcpy(void* __restrict__ dest_ptr, const void* __restrict__ src_ptr, 
              size_t size) {
 
     unsigned char* dest = (unsigned char*) dest_ptr;

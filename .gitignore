@@ -54,3 +54,4 @@ memprint
 workspace.code-workspace
 pintos.bin
 pintos.iso
+.gdbinit

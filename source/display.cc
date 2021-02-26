@@ -14,7 +14,7 @@
 #include "kernel.h"
 #include "memory.h"
 #include "multiboot.h"
-
+#include "error.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -190,7 +190,7 @@ void ega_blank(uint8_t ega_attributes) {
 void draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
 
     if (x > fb.width || y > fb.height) {
-        //TODO: ERROR CODE
+        raise_error(301, const_cast<char*>("draw_pixel"));
         return;
     }
 

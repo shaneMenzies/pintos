@@ -11,6 +11,8 @@
 
 #include "kernel.h"
 
+#include "error.h"
+
 #include "multiboot.h"
 #include "display.h"
 
@@ -34,7 +36,7 @@ uint32_t return_ebx() {
  * 
  */
 void __cxa_pure_virtual() {
-    // TODO: ERROR: Purely virtual function call
+    raise_error(002, const_cast<char*>("__cxa_pure_virtual"));
 }
 
 /**

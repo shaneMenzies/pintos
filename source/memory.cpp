@@ -11,6 +11,7 @@
 #include "memory.h"
 
 #include "multiboot.h"
+#include "error.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -157,8 +158,8 @@ void memory_init(struct mb_info* mb_addr) {
     kernel_mark[kernel_index].end = 0;
     kernel_mark[kernel_index].available_flag = 0;
 
-    // Allocate first 4 bytes of memory for error codes
-    talloc(0, 4);
+    // Allocate first few bytes of memory for error codes
+    talloc(error_code_addr, (sizeof(uint32_t) + sizeof(char*)));
 }
 
 /**
@@ -176,7 +177,7 @@ void* malloc(size_t size) {
 
         // Check for null mark
         if (target_mark.start == 0 && target_mark.end == 0) {
-            //TODO: ERROR: No memory area available
+            raise_error(201, const_cast<char*>("Malloc"));
             return (void*)(0);
         }
 
@@ -309,7 +310,7 @@ void free(void* target_address) {
     while (1) {
 
         if (index >= 256) {
-            //TODO: ERROR: ASSOCIATED MARK NOT FOUND
+            raise_error(202, const_cast<char*>("Free(void*)"));
             return;
         }
 

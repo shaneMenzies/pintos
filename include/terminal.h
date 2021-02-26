@@ -20,8 +20,7 @@ typedef class terminal {
         void printf(char*, ...);
 
         void show();
-        void show(uint32_t, uint32_t);
-        void show(uint8_t);
+        void show(uint32_t, uint32_t, uint8_t);
 } terminal;
 
 uint16_t stringify(char* target_buffer, int number, uint8_t base);

@@ -12,6 +12,7 @@
 #include "terminal.h"
 #include "memory.h"
 #include "init.h"
+#include "error.h"
 
 #include "display.h"
 #include "multiboot.h"
@@ -22,6 +23,7 @@
 #include <stddef.h>
 
 struct mb_info* mb_ptr;
+terminal* active_terminal;
 
 extern "C" {
 void call_kernel() {
@@ -43,6 +45,7 @@ void kernel_main() {
     terminal_0->default_fg = 0xffffff;
     terminal_0->default_bg = 0;
     terminal_0->default_ega = 0x0f;
+    active_terminal = terminal_0;
 
     terminal_0->printf(const_cast<char*>("Hi there, Agent %d"), 47);
 

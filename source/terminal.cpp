@@ -180,12 +180,12 @@ void terminal::show() {
     }
 }
 
-void terminal::show(uint32_t fg_color, uint32_t bg_color) {
-    fb_puts(0, 0, text, fg_color, bg_color);
-}
-
-void terminal::show(uint8_t ega_attributes) {
-    ega_puts(0, 0, ega_attributes, text);
+void terminal::show(uint32_t fg_color, uint32_t bg_color, uint8_t ega_attributes) {
+    if (fb.direct_color) {
+        fb_puts(0, 0, text, fg_color, bg_color);
+    } else {    
+        ega_puts(0, 0, ega_attributes, text);
+    }
 }
 
 /**

@@ -614,81 +614,10 @@ void mark_tree::left_right() {
     parent_mark->balance = 0;
 }
 
-/* #endregion tree_rotations */
+void mark_tree::balance_ancestors(bookmark* current_mark, int8_t change) {
 
-/**
- * @brief Places a new mark into this tree, sorting it into the correct position
- *        based on either size or address. This function also does rebalance
- *        the tree after placing the new mark.
- *              - Note: In cases of sorting by size, where the size of the new
- *                      mark is the same as another one, the new mark will
- *                      always get placed on the RIGHT side of the old one
- * 
- * @param new_mark New mark to be placed in the tree
- */
-void mark_tree::insert(bookmark* new_mark) {
+    current_mark->balance += change;
 
-    bookmark* current_mark = root_mark;
-
-    // Search through the tree to find the correct spot for the new mark
-    while (1) {
-
-        // Determine direction from current mark and what the tree
-        // is sorted by (address or size)
-        link direction = RIGHT;
-
-        if (size_sorted) {
-            // Sorted by size
-            if (current_mark->size > new_mark->size) {
-                direction = LEFT;
-
-            // If current_mark->size <= new_mark->size, the direction 
-            // isn't changed from RIGHT
-            }
-        } else {
-            // Sorted by starting address
-            if (current_mark->start > new_mark->start) {
-                direction = LEFT;
-
-            // If current_mark->start < new_mark->start, the direction 
-            // isn't changed from RIGHT
-            } else if (current_mark->start == new_mark->start) {
-                // If the new start address is the same as one already
-                // existing, something is very wrong, and most likely
-                // this mark already exists.
-                raise_error(204, const_cast<char*>("mark_tree::insert(bookmark*"));
-                return;
-            }
-        }
-
-        // If the direction doesn't have a child then put the new mark there
-        // and break, otherwise just travel down that path
-        if (direction == LEFT) {
-            if (!(current_mark->flags & LEFT_CHILD)) {
-                current_mark->flags |= LEFT_CHILD;
-                current_mark->link[LEFT] = new_mark;
-                current_mark->balance -= 1;
-                new_mark->parent = current_mark;
-                new_mark->flags &= ~(IS_RIGHT_CHILD);
-                break;
-            } else {
-                current_mark = current_mark->link[LEFT];
-            }
-        } else {
-            if (!(current_mark->flags & RIGHT_CHILD)) {
-                current_mark->flags |= RIGHT_CHILD;
-                current_mark->link[RIGHT] = new_mark;
-                current_mark->balance += 1;
-                new_mark->parent = current_mark;
-                new_mark->flags |= IS_RIGHT_CHILD;
-                break;
-            } else {
-                current_mark = current_mark->link[RIGHT];
-            }
-        }
-    }
-
-    // Rebalance the tree
     while (current_mark->balance != 0) {
         // If balance factor >= 2 then right tree needs rebalancing
         if (current_mark->balance >= 2) {
@@ -745,13 +674,92 @@ void mark_tree::insert(bookmark* new_mark) {
 
 
         // Move to the parent, and update it's balance factor
-        current_mark = current_mark->parent;
+        int8_t modifier = -1;
         if (current_mark->flags & IS_RIGHT_CHILD) {
-            current_mark->balance += 1;
+            modifier = 1;
+        }
+        current_mark = current_mark->parent;
+        current_mark->balance += modifier;
+    }
+}
+
+/* #endregion tree_rotations */
+
+/**
+ * @brief Places a new mark into this tree, sorting it into the correct position
+ *        based on either size or address. This function also does rebalance
+ *        the tree after placing the new mark.
+ *              - Note: In cases of sorting by size, where the size of the new
+ *                      mark is the same as another one, the new mark will
+ *                      always get placed on the RIGHT side of the old one
+ * 
+ * @param new_mark New mark to be placed in the tree
+ */
+void mark_tree::insert(bookmark* new_mark) {
+
+    bookmark* current_mark = root_mark;
+    int8_t balance_change;
+
+    // Search through the tree to find the correct spot for the new mark
+    while (1) {
+
+        // Determine direction from current mark and what the tree
+        // is sorted by (address or size)
+        link direction = RIGHT;
+
+        if (size_sorted) {
+            // Sorted by size
+            if (current_mark->size > new_mark->size) {
+                direction = LEFT;
+
+            // If current_mark->size <= new_mark->size, the direction 
+            // isn't changed from RIGHT
+            }
         } else {
-            current_mark->balance -= 1;
+            // Sorted by starting address
+            if (current_mark->start > new_mark->start) {
+                direction = LEFT;
+
+            // If current_mark->start < new_mark->start, the direction 
+            // isn't changed from RIGHT
+            } else if (current_mark->start == new_mark->start) {
+                // If the new start address is the same as one already
+                // existing, something is very wrong, and most likely
+                // this mark already exists.
+                raise_error(204, const_cast<char*>("mark_tree::insert(bookmark*"));
+                return;
+            }
+        }
+
+        // If the direction doesn't have a child then put the new mark there
+        // and break, otherwise just travel down that path
+        if (direction == LEFT) {
+            if (!(current_mark->flags & LEFT_CHILD)) {
+                current_mark->flags |= LEFT_CHILD;
+                current_mark->link[LEFT] = new_mark;
+                balance_change = -1;
+                new_mark->parent = current_mark;
+                new_mark->flags &= ~(IS_RIGHT_CHILD);
+                break;
+            } else {
+                current_mark = current_mark->link[LEFT];
+            }
+        } else {
+            if (!(current_mark->flags & RIGHT_CHILD)) {
+                current_mark->flags |= RIGHT_CHILD;
+                current_mark->link[RIGHT] = new_mark;
+                balance_change= 1;
+                new_mark->parent = current_mark;
+                new_mark->flags |= IS_RIGHT_CHILD;
+                break;
+            } else {
+                current_mark = current_mark->link[RIGHT];
+            }
         }
     }
+
+    // Rebalance the tree
+    balance_ancestors(current_mark, balance_change);
 }
 
 void mark_tree::remove(void* target_start) {
@@ -759,10 +767,73 @@ void mark_tree::remove(void* target_start) {
     // Find the target mark in the tree
     bookmark* target_mark = find(target_start);
 
+    // Seperate the mark from the rest of the tree
+    seperate(target_mark);
 }
 
 void mark_tree::remove(void* target_start, size_t size) {
 
     // Find the target mark in the tree, assisted by the size
     bookmark* target_mark = find(target_start, size);
+    
+    // Seperate the mark from the rest of the tree
+    seperate(target_mark);
+}
+
+void mark_tree::seperate(bookmark* target_mark) {
+
+    int8_t balance_change;
+
+    // Check if the mark has children
+    bool right_child = target_mark->flags & RIGHT_CHILD;
+    bool left_child = target_mark->flags & LEFT_CHILD;
+
+    // If it has no children, the process is very easy
+    if (!(right_child) && !(left_child)) {
+
+        if (target_mark->flags & IS_RIGHT_CHILD) {
+            target_mark->parent->flags &= ~(RIGHT_CHILD);
+            balance_change = -1;
+        } else {
+            target_mark->parent->flags &= ~(LEFT_CHILD);
+            balance_change = 1;
+        }
+
+    // Only right child
+    } else if (right_child && !left_child) {
+
+        if (target_mark->flags & IS_RIGHT_CHILD) {
+            target_mark->parent->link[RIGHT] = target_mark->link[RIGHT];
+            balance_change = -1;
+        } else {
+            target_mark->parent->link[LEFT] = target_mark->link[RIGHT];
+            target_mark->link[RIGHT]->flags &= ~(IS_RIGHT_CHILD);
+            balance_change = 1;
+        }
+
+        target_mark->link[RIGHT]->parent = target_mark->parent;
+
+    // Only left child
+    } else if (left_child && !right_child) {
+
+        if (target_mark->flags & IS_RIGHT_CHILD) {
+            target_mark->parent->link[RIGHT] = target_mark->link[LEFT];
+            target_mark->link[RIGHT]->flags |= IS_RIGHT_CHILD;
+            balance_change = -1;
+        } else {
+            target_mark->parent->link[LEFT] = target_mark->link[LEFT];
+            balance_change = 1;
+        }
+
+        target_mark->link[LEFT]->parent = target_mark->parent;
+
+    // It has children on both sides (longest case)
+    } else {
+
+
+
+    }
+
+    // Rebalance the tree
+    balance_ancestors(target_mark, balance_change);
 }

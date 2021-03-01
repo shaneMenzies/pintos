@@ -55,6 +55,14 @@ class mark_tree {
         void right_left();
         void left_right();
 
+        // Function that seperates a certain bookmark from the
+        // rest of the tree
+        void seperate(bookmark*);
+
+        // Function that balances tree from certain mark up,
+        // it does apply the balance change itself
+        void balance_ancestors(bookmark*, int8_t);
+
     public:
         mark_tree(bookmark*);
 

@@ -44,11 +44,12 @@ void check_error_terminal() {
  * @param caller        Name of function raising the error
  */
 void raise_error(uint32_t error_code=0, char* caller=0) {
-    *error_code_addr = error_code;
-    *error_caller_addr = caller;
 
     // Check to ensure the error terminal exists
     check_error_terminal();
+
+    *error_code_addr = error_code;
+    *error_caller_addr = caller;
 
     // Print the error code to the terminal
     const char error_code_format[] = "\nError No. %u in %s:\n\t";
@@ -81,6 +82,12 @@ const char* get_code_info(uint32_t error_code) {
 
         case 202:
             return "Requested Bookmark not found";
+
+        case 203:
+            return "Incorrect find for this tree's sorting target";
+
+        case 204:
+            return "New bookmark already present in tree";
 
         case 301:
             return "Outside of framebuffer range";

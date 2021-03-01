@@ -25,6 +25,4 @@ typedef class terminal {
 
 uint16_t stringify(char* target_buffer, int number, uint8_t base);
 
-void tprintf(terminal* target_term, char* format, ...);
-
 #endif

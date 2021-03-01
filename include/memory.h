@@ -1,18 +1,11 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include "bookmark.h"
 #include "multiboot.h"
 
 #include <stddef.h>
 #include <stdint.h>
-
-typedef struct bookmark {
-
-    void* start;
-    void* end;
-    bool available_flag;
-
-} bookmark;
 
 bookmark mmap_to_mark(uint32_t* mmap_addr);
 

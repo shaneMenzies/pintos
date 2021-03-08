@@ -54,6 +54,34 @@ bool bookmark::has_right() {
 }
 
 /**
+ * @brief Returns true if this mark has both a right and left child,
+ *        or false if it doesn't have both.
+ * 
+ * @return true     If it has a child on each side
+ * @return false    If it doesn't have a child on each side
+ */
+bool bookmark::has_both() {
+    if ((this->flags & (RIGHT_CHILD | LEFT_CHILD)) == (RIGHT_CHILD | LEFT_CHILD))
+        return true;
+    else 
+        return false;
+}
+
+/**
+ * @brief Returns true if this mark has any child,
+ *        or false if it doesn't have any.
+ * 
+ * @return true     If it has a child on either side
+ * @return false    If it doesn't have a child
+ */
+bool bookmark::has_any() {
+    if (this->flags & (RIGHT_CHILD | LEFT_CHILD))
+        return true;
+    else 
+        return false;
+}
+
+/**
  * @brief Returns true if this mark is a left child, or false if it isn't
  * 
  * @return true     If it is a left child
@@ -148,6 +176,14 @@ void bookmark::remove_left() {
     this->flags &= ~(LEFT_CHILD);
 }
  
+ /**
+  * @brief Removes this mark's connections to any children
+  * 
+  */
+void bookmark::remove_any() {
+    this->flags &= !(LEFT_CHILD | RIGHT_CHILD);
+}
+
 /* #endregion */
 
 /* #region mark_tree functions */
@@ -1198,8 +1234,6 @@ void mark_tree::seperate(bookmark* target_mark) {
 void mark_tree::seperate_root() {
     
     bookmark* target_mark = root_mark;
-
-    int8_t balance_change = (target_mark->is_right() ? -1 : 1);
 
     // Check if the mark has children
     bool right_child = target_mark->has_right();

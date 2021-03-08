@@ -1,19 +1,16 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#include "bookmark.h"
-#include "multiboot.h"
-
 #include <stddef.h>
 #include <stdint.h>
 
-bookmark mmap_to_mark(uint32_t* mmap_addr);
+#include "bookmark.h"
+#include "multiboot.h"
+#include "error.h"
 
-int find_null_mark(int start);
+trees::bookmark* mkalloc();
 
-void cycle_marks_up(int start, int count);
-
-void cycle_marks_down(int start, int count);
+trees::bookmark mmap_to_mark(uint32_t* mmap_addr);
 
 void memory_init(struct mb_info* mb_addr);
 

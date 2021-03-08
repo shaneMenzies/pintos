@@ -47,7 +47,9 @@ void kernel_main() {
     terminal_0->default_ega = 0x0f;
     active_terminal = terminal_0;
 
-    terminal_0->printf(const_cast<char*>("Hi there, Agent %d"), 47);
+    char test_string[] = "\nWell howdy there partn'r, this sure is a mighty fine day we got ourselves, now ain't it?\n";
+
+    terminal_0->printf(const_cast<char*>("Hi there.\n%s"), test_string);
 
     terminal_0->show();
 

@@ -12,6 +12,7 @@ namespace trees {
 
         public:
 
+            bookmark(){};
             bookmark(void* start, void* end);
             bookmark(void* start, size_t size);
 
@@ -25,6 +26,8 @@ namespace trees {
 
             bool has_left();
             bool has_right();
+            bool has_both();
+            bool has_any();
 
             bool is_left();
             bool is_right();
@@ -38,6 +41,7 @@ namespace trees {
 
             void remove_right();
             void remove_left();
+            void remove_any();
     };
 
     enum mark_flags {

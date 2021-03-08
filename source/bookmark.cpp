@@ -9,20 +9,212 @@
 
 #include "bookmark.h"
 
-#include "error.h"
+namespace trees {
+
+/* #region bookmark functions */
+
+bookmark::bookmark(void* start_addr, void* end_addr) : start(start_addr), end(end_addr) {
+    this->size = (size_t)((uintptr_t)end_addr - (uintptr_t)start_addr);
+    this->balance = 0;
+    this->flags = 0;
+}
+
+bookmark::bookmark(void* start_addr, size_t new_size) : start(start_addr), size(new_size) {
+    this->end = (void*)((uintptr_t)start_addr + new_size);
+    this->balance = 0;
+    this->flags = 0;
+}
 
 /**
- * @brief Construct a new AVL mark tree
+ * @brief Returns true if this mark has a left child, or false if it doesn't
+ * 
+ * @return true     If it does have a left child
+ * @return false    If it doesn't have a left child
+ */
+bool bookmark::has_left() {
+    if (this->flags & LEFT_CHILD) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @brief Returns true if this mark has a right child, or false if it doesn't
+ * 
+ * @return true     If it does have a right child
+ * @return false    If it doesn't have a right child
+ */
+bool bookmark::has_right() {
+    if (this->flags & RIGHT_CHILD) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @brief Returns true if this mark is a left child, or false if it isn't
+ * 
+ * @return true     If it is a left child
+ * @return false    If it isn't a left child
+ */
+bool bookmark::is_left() {
+    if (!(this->flags & IS_RIGHT_CHILD)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @brief Returns true if this mark is a right child, or false if it isn't
+ * 
+ * @return true     If it is a right child
+ * @return false    If it isn't a right child
+ */
+bool bookmark::is_right() {
+    if (this->flags & IS_RIGHT_CHILD) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @brief Set's this mark's right child
+ * 
+ * @param new_child     New child
+ */
+void bookmark::set_right(bookmark* new_child) {
+    this->link[RIGHT] = new_child;
+    this->flags |= RIGHT_CHILD;
+    new_child->parent = this;
+    new_child->flags |= IS_RIGHT_CHILD;
+}
+
+/**
+ * @brief Set's this mark's left child
+ * 
+ * @param new_child     New child
+ */
+void bookmark::set_left(bookmark* new_child) {
+    this->link[LEFT] = new_child;
+    this->flags |= LEFT_CHILD;
+    new_child->parent = this;
+    new_child->flags &= ~(IS_RIGHT_CHILD);
+}
+
+/**
+ * @brief Gets this mark's right child
+ * 
+ * @return bookmark*    Right child
+ */
+bookmark* bookmark::get_right() {
+    return this->link[RIGHT];
+}
+
+/**
+ * @brief Gets this mark's left child
+ * 
+ * @return bookmark*    Left child
+ */
+bookmark* bookmark::get_left() {
+    return this->link[LEFT];
+}
+
+/**
+ * @brief Gets this mark's parent mark
+ * 
+ * @return bookmark*    Parent
+ */
+bookmark* bookmark::get_parent() {
+    return this->parent;
+}
+
+/**
+ * @brief Removes this mark's connection to it's right child
+ * 
+ */
+void bookmark::remove_right() {
+    this->flags &= ~(RIGHT_CHILD);
+}
+
+/**
+ * @brief Removes this mark's connection to it's left child
+ * 
+ */
+void bookmark::remove_left() {
+    this->flags &= ~(LEFT_CHILD);
+}
+ 
+/* #endregion */
+
+/* #region mark_tree functions */
+
+/**
+ * @brief Construct a new, blank, tree. 
+ * 
+ * @param size_sorted   Whether the new tree is sorted by size or not
+ */
+mark_tree::mark_tree(bool size_sorted) : size_sorted(size_sorted){
+
+}
+
+/**
+ * @brief Construct a new AVL mark tree, based off an already existing mark
  * 
  * @param init_mark     Pointer to the bookmark to start as the root of the tree
  */
-mark_tree::mark_tree(bookmark* init_mark) : root_mark(init_mark) {
+mark_tree::mark_tree(bookmark* init_mark, bool size_sorted, bool in_form) : root_mark(init_mark) {
     root_mark->parent = NULL;
-    root_mark->flags &= ~(LEFT_CHILD | RIGHT_CHILD);
-    root_mark->balance = 0;
+
+    if (size_sorted) {
+        this->size_sorted = true;
+    }
+
+    if (!in_form) {
+        root_mark->flags &= ~(LEFT_CHILD | RIGHT_CHILD);
+        root_mark->balance = 0;
+    }
 }
 
-/* #region search_functions */
+/**
+ * @brief Calculates the height of this tree, and returns it
+ * 
+ * @return unsigned int     Current height of this tree, at it's tallest point
+ */
+unsigned int mark_tree::get_height() {
+
+    bookmark* current_mark = root_mark;
+
+    // If tree not created yet, return 0
+    if (current_mark == 0) {
+        return 0;
+    }
+
+    unsigned int total_height = 0;
+
+    while(1) {
+        total_height++;
+
+        // Only break out of this loop once there are no more children
+        if (!current_mark->has_left() && !current_mark->has_right()) {
+            break;
+        }
+
+        // Move based on balance of this mark
+        if (current_mark->balance < 0) {
+            current_mark = current_mark->link[LEFT];
+        } else {
+            current_mark = current_mark->link[RIGHT];
+        }
+    }
+
+    return total_height;
+}
+
+/* #region search functions */
 
 /**
  * @brief Recursively searchs through the entire tree to find a certain
@@ -55,7 +247,7 @@ bookmark* mark_tree::hard_find(void* target_start) {
 
             reverse = false;
             // Does this mark have a right child?
-            if (current_mark->flags & RIGHT_CHILD) {
+            if (current_mark->has_right()) {
                 current_mark = current_mark->link[RIGHT];
                 continue;
             } else {
@@ -63,10 +255,19 @@ bookmark* mark_tree::hard_find(void* target_start) {
                 // Reached the end of this path, so go up until we're
                 // at the end of the right children, before going to the 
                 // parent's right child
-                while (current_mark->flags & IS_RIGHT_CHILD) {
+                while (1) {
                     current_mark = current_mark->parent;
+
+                    if (current_mark->is_left()) {
+                        break;
+                    }
                 }
-                current_mark = current_mark->parent;
+
+                // If we've returned to the root, then break
+                if (current_mark == root_mark) {
+                    break;
+                }
+
                 reverse = true;
             }
 
@@ -76,7 +277,6 @@ bookmark* mark_tree::hard_find(void* target_start) {
             // Does this mark have a left child?
             if (current_mark->flags & LEFT_CHILD) {
                 current_mark = current_mark->link[LEFT];
-                continue;
             } else {
                 // Reached the end of this path, so go up 1, and to the right child
                 current_mark = current_mark->parent;
@@ -99,18 +299,26 @@ bookmark* mark_tree::hard_find(void* target_start) {
 
             reverse = false;
             // Does this mark have a left child?
-            if (current_mark->flags & LEFT_CHILD) {
+            if (current_mark->has_left()) {
                 current_mark = current_mark->link[LEFT];
-                continue;
             } else {
 
                 // Reached the end of this path, so go up until we're
                 // at the end of the left children, before going to the 
                 // parent's left child
-                while (!(current_mark->flags & IS_RIGHT_CHILD)) {
+                while (1) {
                     current_mark = current_mark->parent;
+
+                    if (current_mark->is_left()) {
+                        break;
+                    }
                 }
-                current_mark = current_mark->parent;
+
+                // If we've returned to the root, then break
+                if (current_mark == root_mark) {
+                    break;
+                }
+
                 reverse = true;
             }
 
@@ -118,9 +326,8 @@ bookmark* mark_tree::hard_find(void* target_start) {
         } else {
 
             // Does this mark have a right child?
-            if (current_mark->flags & RIGHT_CHILD) {
+            if (current_mark->has_right()) {
                 current_mark = current_mark->link[RIGHT];
-                continue;
             } else {
                 // Reached the end of this path, so go up 1, and to the left child
                 current_mark = current_mark->parent;
@@ -156,12 +363,10 @@ bookmark* mark_tree::find(void* target_start) {
     while (current_mark->start != target_start) {
 
         // Move to one of the child nodes
-        if ((current_mark->start < target_start) 
-             && (current_mark->flags & RIGHT_CHILD)) {
-            current_mark = current_mark->link[1];
-        } else if ((current_mark->start > target_start) 
-                    && (current_mark->flags & LEFT_CHILD)) {
-            current_mark = current_mark->link[0];
+        if ((current_mark->start < target_start) && current_mark->has_right()) {
+            current_mark = current_mark->link[RIGHT];
+        } else if ((current_mark->start > target_start) && current_mark->has_left()) {
+            current_mark = current_mark->link[LEFT];
         } else {
             // No valid link, so there is no valid mark with this size
             raise_error(202, const_cast<char*>("mark_tree::find(void*)"));
@@ -194,8 +399,7 @@ bookmark* mark_tree::find(void* target_start, size_t size) {
     while (1) {
 
         // Check the size
-        if ((current_mark->size <= size) 
-             && (current_mark->flags & RIGHT_CHILD)) {
+        if ((current_mark->size <= size) && current_mark->has_right()) {
 
             // Catch if size is equal, check if the address is the same
             if ((current_mark->size == size) 
@@ -206,8 +410,7 @@ bookmark* mark_tree::find(void* target_start, size_t size) {
                 current_mark = current_mark->link[RIGHT];
             }
 
-        } else if ((current_mark->size > size) 
-                    && (current_mark->flags & LEFT_CHILD)) {
+        } else if ((current_mark->size > size) && current_mark->has_left()) {
             current_mark = current_mark->link[LEFT];
         } else {
             // No valid link, so there is no valid mark with this size
@@ -248,12 +451,10 @@ bookmark* mark_tree::find_suitable(size_t min_size) {
         }
 
         // Jump to the next mark
-        if ((current_mark->size < min_size) 
-             && (current_mark->flags & RIGHT_CHILD)) {
-            current_mark = current_mark->link[1];
-        } else if ((current_mark->size > min_size) 
-                    && (current_mark->flags & LEFT_CHILD)) {
-            current_mark = current_mark->link[0];
+        if ((current_mark->size < min_size) && current_mark->has_right()) {
+            current_mark = current_mark->link[RIGHT];
+        } else if ((current_mark->size > min_size) && current_mark->has_left()) {
+            current_mark = current_mark->link[LEFT];
         } else {
             // Either this mark is perfect (in which case it's already been
             // saved in last_suitable), or there are no more nodes
@@ -273,149 +474,180 @@ bookmark* mark_tree::find_suitable(size_t min_size) {
 
 /* #endregion search_functions */
 
-/* #region tree_rotations */
+/* #region tree rotations */
 
-void mark_tree::right(bookmark* parent) {
+/**
+ * @brief Right-Right rotation around the provided parent mark
+ * 
+ * @param parent        Parent mark to be rotated around
+ * @return bookmark*    New parent mark, after rotation
+ */
+bookmark* mark_tree::right(bookmark* parent) {
     
-    // Store the address of the child, and then rotate the child into its place
+    // Store the addresses of the related marks,
+    // and then rotate the child into its place.
+    bookmark* grandparent_mark = parent->parent;
     bookmark* child_mark = parent->link[LEFT];
-    child_mark->parent = parent->parent;
-    if (parent->flags & IS_RIGHT_CHILD) {
-        parent->parent->link[RIGHT] = child_mark;
-        child_mark->flags |= IS_RIGHT_CHILD;
+
+    if (parent->is_right()) {
+        grandparent_mark->set_right(child_mark);
     } else {
-        parent->parent->link[LEFT] = child_mark;
-        child_mark->flags &= ~(IS_RIGHT_CHILD);
+        grandparent_mark->set_left(child_mark);
     }
 
     // If the child itself has a right child, then rotate that too
-    if (child_mark->flags & RIGHT_CHILD) {
-        parent->link[LEFT] = child_mark->link[RIGHT];
-        parent->link[LEFT]->parent = parent;
-        parent->link[LEFT]->flags &= ~(IS_RIGHT_CHILD);
+    if (child_mark->has_right()) {
+        parent->set_left(child_mark->link[RIGHT]);
     } else {
-        // If it doesn't already have a child, then it does now,
-        // and the parent won't have left child
-        child_mark->flags |= RIGHT_CHILD;
-        parent->flags &= ~(LEFT_CHILD);
+        parent->remove_left();
     }
 
-    // Set the child to be the new parent
-    parent->parent = child_mark;
-    parent->flags |= IS_RIGHT_CHILD;
+    // Child's right child is now the parent
+    child_mark->set_right(parent);
 
     // Update balance factors
-    parent->balance += (1 - child_mark->balance);
-    child_mark->balance += 1;
+    if (child_mark->balance == 0) {
+        parent->balance = -1;
+        child_mark->balance = 1;
+    } else {
+        parent->balance = 0;
+        child_mark->balance = 0;
+    }
+
+    // Return the new base mark
+    return child_mark;
 }
 
-void mark_tree::left(bookmark* parent) {
 
-    // Store the address of the child, and then rotate the child into its place
+/**
+ * @brief Left-Left rotation around the provided parent mark
+ * 
+ * @param parent        Parent mark to be rotated around
+ * @return bookmark*    New parent mark, after rotation
+ */
+bookmark* mark_tree::left(bookmark* parent) {
+
+    // Store the addresses of the related marks,
+    // and then rotate the child into its place.
+    bookmark* grandparent_mark = parent->parent;
     bookmark* child_mark = parent->link[RIGHT];
-    child_mark->parent = parent->parent;
-    if (parent->flags & IS_RIGHT_CHILD) {
-        parent->parent->link[RIGHT] = child_mark;
-        child_mark->flags |= IS_RIGHT_CHILD;
+
+    if (parent->is_right()) {
+        grandparent_mark->set_right(child_mark);
     } else {
-        parent->parent->link[LEFT] = child_mark;
-        child_mark->flags &= ~(IS_RIGHT_CHILD);
+        grandparent_mark->set_left(child_mark);
     }
 
     // If the child itself has a left child, then rotate that too
-    if (child_mark->flags & LEFT_CHILD) {
-        parent->link[RIGHT] = child_mark->link[LEFT];
-        parent->link[RIGHT]->parent = parent;
-        parent->link[RIGHT]->flags |= IS_RIGHT_CHILD;
+    if (child_mark->has_left()) {
+        parent->set_right(child_mark->link[LEFT]);
     } else {
-        // If it doesn't already have a child, then it does now,
-        // and the parent won't have left child
-        child_mark->flags |= LEFT_CHILD;
-        parent->flags &= ~(RIGHT_CHILD);
+        parent->remove_right();
     }
 
-    // Set the child to be the new parent
-    parent->parent = child_mark;
-    parent->flags &= ~(IS_RIGHT_CHILD);
+    // Child's left child is now the parent
+    child_mark->set_left(parent);
 
     // Update balance factors
-    parent->balance -= (1 - child_mark->balance);
-    child_mark->balance -= 1;
+    if (child_mark->balance == 0) {
+        parent->balance = 1;
+        child_mark->balance = -1;
+    } else {
+        parent->balance = 0;
+        child_mark->balance = 0;
+    }
+
+    // Return the new base mark
+    return child_mark;
 }
 
-void mark_tree::right() {
+/**
+ * @brief Right-Right rotation around the root node
+ * 
+ * @return bookmark*    New Root Node
+ */
+bookmark* mark_tree::right() {
     
-    // Store the address of the marks, and then rotate the child into its place
-    bookmark* parent_mark = root_mark;
-    root_mark = parent_mark->link[LEFT];
-    root_mark->parent = NULL;
-    root_mark->flags &= ~(IS_RIGHT_CHILD);
+    // Store the addresses of the related marks,
+    // and then rotate the child into its place.
+    bookmark* parent = root_mark;
+    root_mark = parent->link[LEFT];
 
     // If the child itself has a right child, then rotate that too
-    if (root_mark->flags & RIGHT_CHILD) {
-        parent_mark->link[LEFT] = root_mark->link[RIGHT];
-        parent_mark->link[LEFT]->parent = parent_mark;
-        parent_mark->link[LEFT]->flags &= ~(IS_RIGHT_CHILD);
+    if (root_mark->has_right()) {
+        parent->set_left(root_mark->link[RIGHT]);
     } else {
-        // If it doesn't already have a child, then it does now,
-        // and the parent won't have left child
-        root_mark->flags |= RIGHT_CHILD;
-        parent_mark->flags &= ~(LEFT_CHILD);
+        parent->remove_left();
     }
 
-    // Set the child to be the new parent
-    parent_mark->parent = root_mark;
-    parent_mark->flags |= IS_RIGHT_CHILD;
+    // Child's right child is now the parent
+    root_mark->set_right(parent);
 
     // Update balance factors
-    parent_mark->balance += (1 - root_mark->balance);
-    root_mark->balance += 1;
+    if (root_mark->balance == 0) {
+        parent->balance = -1;
+        root_mark->balance = 1;
+    } else {
+        parent->balance = 0;
+        root_mark->balance = 0;
+    }
+
+    // Return the new base mark
+    return root_mark;
 }
 
-void mark_tree::left() {
+/**
+ * @brief Left-Left rotation around the root node
+ * 
+ * @return bookmark*    New Root Node
+ */
+bookmark* mark_tree::left() {
 
-    // Store the address of the marks, and then rotate the child into its place
-    bookmark* parent_mark = root_mark;
-    root_mark = parent_mark->link[RIGHT];
-    root_mark->parent = NULL;
-    root_mark->flags &= ~(IS_RIGHT_CHILD);
+    // Store the addresses of the related marks,
+    // and then rotate the child into its place.
+    bookmark* parent = root_mark;
+    root_mark = parent->link[RIGHT];
 
     // If the child itself has a left child, then rotate that too
-    if (root_mark->flags & LEFT_CHILD) {
-        parent_mark->link[RIGHT] = root_mark->link[LEFT];
-        parent_mark->link[RIGHT]->parent = parent_mark;
-        parent_mark->link[RIGHT]->flags |= IS_RIGHT_CHILD;
+    if (root_mark->has_left()) {
+        parent->set_right(root_mark->link[LEFT]);
     } else {
-        // If it doesn't already have a child, then it does now,
-        // and the parent won't have left child
-        root_mark->flags |= LEFT_CHILD;
-        parent_mark->flags &= ~(RIGHT_CHILD);
+        parent->remove_right();
     }
 
-    // Set the child to be the new parent
-    parent_mark->parent = root_mark;
-    parent_mark->flags &= ~(IS_RIGHT_CHILD);
+    // Child's right child is now the parent
+    root_mark->set_left(parent);
 
     // Update balance factors
-    parent_mark->balance -= (1 - root_mark->balance);
-    root_mark->balance -= 1;
+    if (root_mark->balance == 0) {
+        parent->balance = 1;
+        root_mark->balance = -1;
+    } else {
+        parent->balance = 0;
+        root_mark->balance = 0;
+    }
+
+    return root_mark;
 }
 
-void mark_tree::right_left(bookmark* parent) {
+/**
+ * @brief Right-Left rotation around the provided parent mark
+ * 
+ * @param parent        Parent mark to be rotated around
+ * @return bookmark*    New parent mark, after rotation
+ */
+bookmark* mark_tree::right_left(bookmark* parent) {
 
     // Store the address of the child and grandchild, 
-    // since they'll be needed a lot
     bookmark* child_mark = parent->link[RIGHT];
     bookmark* grandchild_mark = child_mark->link[LEFT];
 
     // Set the grandchild in place
     grandchild_mark->parent = parent->parent;
-    if (parent->flags & IS_RIGHT_CHILD) {
-        parent->parent->link[RIGHT] = grandchild_mark;
-        grandchild_mark->flags |= IS_RIGHT_CHILD;
+    if (parent->is_right()) {
+        parent->parent->set_right(grandchild_mark);
     } else {
-        parent->parent->link[LEFT] = grandchild_mark;
-        grandchild_mark->flags &= ~(IS_RIGHT_CHILD);
+        parent->parent->set_left(grandchild_mark);
     }
 
     // Move the grandchild's children onto the parent and child, 
@@ -423,52 +655,72 @@ void mark_tree::right_left(bookmark* parent) {
     // children of the current grandchild
 
     // Right Child
-    if (grandchild_mark->flags & RIGHT_CHILD) {
-        child_mark->link[LEFT] = grandchild_mark->link[RIGHT];
-        child_mark->link[LEFT]->parent = child_mark;
-        child_mark->link[LEFT]->flags &= ~(IS_RIGHT_CHILD);
+    if (grandchild_mark->has_right()) {
+        child_mark->set_left(grandchild_mark->link[RIGHT]);
     } else {
-        grandchild_mark->flags |= RIGHT_CHILD;
-        child_mark->flags &= ~(LEFT_CHILD);
+        child_mark->remove_left();
     }
-    grandchild_mark->link[RIGHT] = child_mark;
-    child_mark->parent = grandchild_mark;
-    child_mark->flags |= IS_RIGHT_CHILD;
+    grandchild_mark->set_right(child_mark);
 
     // Left Child
-    if (grandchild_mark->flags & LEFT_CHILD) {
-        parent->link[RIGHT] = grandchild_mark->link[LEFT];
-        parent->link[RIGHT]->parent = parent;
-        parent->link[RIGHT]->flags |= IS_RIGHT_CHILD;
+    if (grandchild_mark->has_left()) {
+        parent->set_right(grandchild_mark->link[LEFT]);
     } else {
-        grandchild_mark->flags |= LEFT_CHILD;
-        parent->flags &= ~(RIGHT_CHILD);
+        parent->remove_right();
     }
-    grandchild_mark->link[LEFT] = parent;
-    parent->parent = grandchild_mark;
-    parent->flags &= ~(IS_RIGHT_CHILD);
+    grandchild_mark->set_left(parent);
     
     // Update balance factors
-    parent->balance = -(grandchild_mark->balance);
-    grandchild_mark->balance = 0;
-    child_mark->balance = 0;
+    if (grandchild_mark->balance == 0) {
+        parent->balance = 0;
+        child_mark->balance = 0;
+    } else if (grandchild_mark->balance > 0) {
+        grandchild_mark->balance = 0;
+        parent->balance = -1;
+        child_mark->balance = 0;
+    } else {
+        grandchild_mark->balance = 0;
+        parent->balance = 0;
+        child_mark->balance = 1;
+    }
+
+    // Update balance factors
+    if (grandchild_mark->balance == 0) {
+        parent->balance = 0;
+        child_mark->balance = 0;
+    } else if (grandchild_mark->balance > 0) {
+        grandchild_mark->balance = 0;
+        parent->balance = -1;
+        child_mark->balance = 0;
+    } else {
+        grandchild_mark->balance = 0;
+        parent->balance = 0;
+        child_mark->balance = 1;
+    }
+
+    // Return the new base mark
+    return grandchild_mark;
+
 }
 
-void mark_tree::left_right(bookmark* parent) {
+/**
+ * @brief Left-Right rotation around the provided parent mark
+ * 
+ * @param parent        Parent mark to be rotated around
+ * @return bookmark*    New parent mark, after rotation
+ */
+bookmark* mark_tree::left_right(bookmark* parent) {
     
     // Store the address of the child and grandchild, 
-    // since they'll be needed a lot
     bookmark* child_mark = parent->link[LEFT];
     bookmark* grandchild_mark = child_mark->link[RIGHT];
 
     // Set the grandchild in place
     grandchild_mark->parent = parent->parent;
-    if (parent->flags & IS_RIGHT_CHILD) {
-        parent->parent->link[RIGHT] = grandchild_mark;
-        grandchild_mark->flags |= IS_RIGHT_CHILD;
+    if (parent->is_right()) {
+        parent->parent->set_right(grandchild_mark);
     } else {
-        parent->parent->link[LEFT] = grandchild_mark;
-        grandchild_mark->flags &= ~(IS_RIGHT_CHILD);
+        parent->parent->set_left(grandchild_mark);
     }
 
     // Move the grandchild's children onto the parent and child, 
@@ -476,206 +728,203 @@ void mark_tree::left_right(bookmark* parent) {
     // children of the current grandchild
 
     // Right Child
-    if (grandchild_mark->flags & RIGHT_CHILD) {
-        parent->link[LEFT] = grandchild_mark->link[RIGHT];
-        parent->link[LEFT]->parent = parent;
-        parent->link[LEFT]->flags &= ~(IS_RIGHT_CHILD);
+    if (grandchild_mark->has_right()) {
+        parent->set_left(grandchild_mark->link[RIGHT]);
     } else {
-        grandchild_mark->flags |= RIGHT_CHILD;
-        parent->flags &= ~(LEFT_CHILD);
+        parent->remove_left();
     }
-    grandchild_mark->link[RIGHT] = parent;
-    parent->parent = grandchild_mark;
-    parent->flags |= IS_RIGHT_CHILD;
+    grandchild_mark->set_right(parent);
 
     // Left Child
-    if (grandchild_mark->flags & LEFT_CHILD) {
-        child_mark->link[RIGHT] = grandchild_mark->link[LEFT];
-        child_mark->link[RIGHT]->parent = child_mark;
-        child_mark->link[RIGHT]->flags |= IS_RIGHT_CHILD;
+    if (grandchild_mark->has_left()) {
+        child_mark->set_right(grandchild_mark->link[LEFT]);
     } else {
-        grandchild_mark->flags |= LEFT_CHILD;
-        child_mark->flags &= ~(RIGHT_CHILD);
+        child_mark->remove_right();
     }
-    grandchild_mark->link[LEFT] = child_mark;
-    child_mark->parent = grandchild_mark;
-    child_mark->flags &= ~(IS_RIGHT_CHILD);
-
-    // Update balance factors
-    child_mark->balance = -(grandchild_mark->balance);
-    grandchild_mark->balance = 0;
-    parent->balance = 0;
-
-    // Update balance factors
-    child_mark->balance = -(grandchild_mark->balance);
-    grandchild_mark->balance = 0;
-    parent->balance = 0;
-}
-
-void mark_tree::right_left() {
-
-    // Store the address of the child and grandchild, 
-    // since they'll be needed a lot
-    // + for root oriented, need to store the parent's
-    //   address for use even after the root_mark changes
-    bookmark* parent_mark = root_mark;
-    bookmark* child_mark = parent_mark->link[RIGHT];
-    bookmark* grandchild_mark = child_mark->link[LEFT];
-
-    // Set the grandchild in place
-    root_mark = grandchild_mark;
-    grandchild_mark->parent = NULL;
-    grandchild_mark->flags &= ~(IS_RIGHT_CHILD);
-
-    // Move the grandchild's children onto the parent and child, 
-    // and then move down the parent and child to be the new
-    // children of the current grandchild
-
-    // Right Child
-    if (grandchild_mark->flags & RIGHT_CHILD) {
-        child_mark->link[LEFT] = grandchild_mark->link[RIGHT];
-        child_mark->link[LEFT]->parent = child_mark;
-        child_mark->link[LEFT]->flags &= ~(IS_RIGHT_CHILD);
-    } else {
-        grandchild_mark->flags |= RIGHT_CHILD;
-        child_mark->flags &= ~(LEFT_CHILD);
-    }
-    grandchild_mark->link[RIGHT] = child_mark;
-    child_mark->parent = grandchild_mark;
-    child_mark->flags |= IS_RIGHT_CHILD;
-
-    // Left Child
-    if (grandchild_mark->flags & LEFT_CHILD) {
-        parent_mark->link[RIGHT] = grandchild_mark->link[LEFT];
-        parent_mark->link[RIGHT]->parent = parent_mark;
-        parent_mark->link[RIGHT]->flags |= IS_RIGHT_CHILD;
-    } else {
-        grandchild_mark->flags |= LEFT_CHILD;
-        parent_mark->flags &= ~(RIGHT_CHILD);
-    }
-    grandchild_mark->link[LEFT] = parent_mark;
-    parent_mark->parent = grandchild_mark;
-    parent_mark->flags &= ~(IS_RIGHT_CHILD);
-
-    // Update balance factors
-    parent_mark->balance = -(root_mark->balance);
-    root_mark->balance = 0;
-    child_mark->balance = 0;
-}
-
-void mark_tree::left_right() {
+    grandchild_mark->set_left(child_mark);
     
-    // Store the address of the child and grandchild, 
-    // since they'll be needed a lot
-    // + for root oriented, need to store the parent's
-    //   address for use even after the root_mark changes
-    bookmark* parent_mark = root_mark;
-    bookmark* child_mark = parent_mark->link[RIGHT];
-    bookmark* grandchild_mark = child_mark->link[LEFT];
+    // Update balance factors
+    if (grandchild_mark->balance == 0) {
+        parent->balance = 0;
+        child_mark->balance = 0;
+    } else if (grandchild_mark->balance > 0) {
+        grandchild_mark->balance = 0;
+        parent->balance = 0;
+        child_mark->balance = -1;
+    } else {
+        grandchild_mark->balance = 0;
+        parent->balance = 1;
+        child_mark->balance = 0;
+    }
 
-    // Set the grandchild in place
-    root_mark = grandchild_mark;
-    grandchild_mark->parent = NULL;
-    grandchild_mark->flags &= ~(IS_RIGHT_CHILD);
+    // Return the new base mark
+    return grandchild_mark;
+}
+
+/**
+ * @brief Right-Left rotation around the root node
+ * 
+ * @return bookmark*    New Root Node
+ */
+bookmark* mark_tree::right_left() {
+
+    // Store the address of family of marks
+    bookmark* parent = root_mark;
+    bookmark* child_mark = parent->link[RIGHT];
+    root_mark = child_mark->link[LEFT];
 
     // Move the grandchild's children onto the parent and child, 
     // and then move down the parent and child to be the new
     // children of the current grandchild
 
     // Right Child
-    if (grandchild_mark->flags & RIGHT_CHILD) {
-        parent_mark->link[LEFT] = grandchild_mark->link[RIGHT];
-        parent_mark->link[LEFT]->parent = parent_mark;
-        parent_mark->link[LEFT]->flags &= ~(IS_RIGHT_CHILD);
+    if (root_mark->has_right()) {
+        child_mark->set_left(root_mark->link[RIGHT]);
     } else {
-        grandchild_mark->flags |= RIGHT_CHILD;
-        parent_mark->flags &= ~(LEFT_CHILD);
+        child_mark->remove_left();
     }
-    grandchild_mark->link[RIGHT] = parent_mark;
-    parent_mark->parent = grandchild_mark;
-    parent_mark->flags |= IS_RIGHT_CHILD;
+    root_mark->set_right(child_mark);
 
     // Left Child
-    if (grandchild_mark->flags & LEFT_CHILD) {
-        child_mark->link[RIGHT] = grandchild_mark->link[LEFT];
-        child_mark->link[RIGHT]->parent = child_mark;
-        child_mark->link[RIGHT]->flags |= IS_RIGHT_CHILD;
+    if (root_mark->has_left()) {
+        parent->set_right(root_mark->link[LEFT]);
     } else {
-        grandchild_mark->flags |= LEFT_CHILD;
-        child_mark->flags &= ~(RIGHT_CHILD);
+        parent->remove_right();
     }
-    grandchild_mark->link[LEFT] = child_mark;
-    child_mark->parent = grandchild_mark;
-    child_mark->flags &= ~(IS_RIGHT_CHILD);
-
+    root_mark->set_left(parent);
+    
     // Update balance factors
-    child_mark->balance = -(root_mark->balance);
-    root_mark->balance = 0;
-    parent_mark->balance = 0;
+    if (root_mark->balance == 0) {
+        parent->balance = 0;
+        child_mark->balance = 0;
+    } else if (root_mark->balance > 0) {
+        root_mark->balance = 0;
+        parent->balance = -1;
+        child_mark->balance = 0;
+    } else {
+        root_mark->balance = 0;
+        parent->balance = 0;
+        child_mark->balance = 1;
+    }
+
+    // Return the new base mark
+    return root_mark;
 }
 
-void mark_tree::balance_ancestors(bookmark* current_mark, int8_t change) {
+/**
+ * @brief Left-Right around the root node
+ * 
+ * @return bookmark*    New root node
+ */
+bookmark* mark_tree::left_right() {
+    
+    // Store the address of the family of marks
+    bookmark* parent = root_mark;
+    bookmark* child_mark = parent->link[LEFT];
+    root_mark = child_mark->link[RIGHT];
+
+    // Move the grandchild's children onto the parent and child, 
+    // and then move down the parent and child to be the new
+    // children of the current grandchild
+
+    // Right Child
+    if (root_mark->has_right()) {
+        parent->set_left(root_mark->link[RIGHT]);
+    } else {
+        parent->remove_left();
+    }
+    root_mark->set_right(parent);
+
+    // Left Child
+    if (root_mark->has_left()) {
+        child_mark->set_right(root_mark->link[LEFT]);
+    } else {
+        child_mark->remove_right();
+    }
+    root_mark->set_left(child_mark);
+
+    // Update balance factors
+    if (root_mark->balance == 0) {
+        parent->balance = 0;
+        child_mark->balance = 0;
+    } else if (root_mark->balance > 0) {
+        root_mark->balance = 0;
+        parent->balance = 0;
+        child_mark->balance = -1;
+    } else {
+        root_mark->balance = 0;
+        parent->balance = 1;
+        child_mark->balance = 0;
+    }
+
+    return root_mark;
+}
+
+/* #endregion */
+
+/* #region balance functions */
+
+/**
+ * @brief Balances the given mark according to the inputted change caused
+ *        by an insertion, and balances the rest of the tree as well.
+ * 
+ * @param current_mark  Mark to start the balancing at
+ * @param change        Needed change in the mark's balance
+ */
+void mark_tree::balance_insertion(bookmark* current_mark, int8_t change) {
 
     current_mark->balance += change;
 
     while (current_mark->balance != 0) {
+
+        bool root_node = false;
+        if (current_mark == root_mark) {
+            root_node = true;
+        }
+
         // If balance factor >= 2 then right tree needs rebalancing
         if (current_mark->balance >= 2) {
             // Balance right tree
 
-            // Is this the root node?
-            bool root_node = false;
-            if (current_mark == root_mark) {
-                root_node = true;
-            }
-
             // If the child is negative (reverse of parent),
             // then a right_left rotation is needed instead
             if (current_mark->link[RIGHT]->balance < 0) {
-                if (root_node) {
-                    right_left();
-                } else {
-                    right_left(current_mark);
-                }
+                current_mark = (root_node ? right_left() : right_left(current_mark));
             } else {
-                if (root_node) {
-                    left();
-                } else {
-                    left(current_mark);
-                }
+                current_mark = (root_node ? left() : left(current_mark));
+            }
+
+            // If these fixed the balance here, then break here
+            if (current_mark->balance == 0) {
+                break;
             }
 
         // If balance factor <= -2 then left tree needs rebalancing
         } else if (current_mark->balance <= -2) {
             // Balance left tree
 
-            // Is this the root node?
-            bool root_node = false;
-            if (current_mark == root_mark) {
-                root_node = true;
-            }
-
             // If the child is positive (reverse of parent),
             // then a left_right rotation is needed instead
-            if (current_mark->link[RIGHT]->balance > 0) {
-                if (root_node) {
-                    left_right();
-                } else {
-                    left_right(current_mark);
-                }
+            if (current_mark->link[LEFT]->balance > 0) {
+                current_mark = (root_node ? left_right() : left_right(current_mark));
             } else {
-                if (root_node) {
-                    right();
-                } else {
-                    right(current_mark);
-                }
+                current_mark = (root_node ? right() : right(current_mark));
+            }
+
+            // If these fixed the balance here, then break here
+            if (current_mark->balance == 0) {
+                break;
             }
         }
 
+        // If this is the root node, end here
+        if (root_node) {
+            break;
+        }
 
         // Move to the parent, and update it's balance factor
         int8_t modifier = -1;
-        if (current_mark->flags & IS_RIGHT_CHILD) {
+        if (current_mark->is_right()) {
             modifier = 1;
         }
         current_mark = current_mark->parent;
@@ -683,7 +932,77 @@ void mark_tree::balance_ancestors(bookmark* current_mark, int8_t change) {
     }
 }
 
-/* #endregion tree_rotations */
+/**
+ * @brief Balances the given mark according to the inputted change caused
+ *        by a deletion, and balances the rest of the tree as well.
+ * 
+ * @param current_mark  Mark to start the balancing at
+ * @param change        Needed change in the mark's balance
+ */
+void mark_tree::balance_deletion(bookmark* current_mark, int8_t change) {
+
+    current_mark->balance += change;
+
+    while (current_mark->balance != 1 && current_mark->balance != -1) {
+
+        bool root_node = false;
+        if (current_mark == root_mark) {
+            root_node = true;
+        }
+
+        // If balance factor >= 2 then right tree needs rebalancing
+        if (current_mark->balance >= 2) {
+            // Balance right tree
+
+            // If the child is negative (reverse of parent),
+            // then a right_left rotation is needed instead
+            if (current_mark->link[RIGHT]->balance < 0) {
+                current_mark = (root_node ? right_left() : right_left(current_mark));
+            } else {
+                current_mark = (root_node ? left() : left(current_mark));
+            }
+
+            // If these fixed the balance here, then break here
+            if (current_mark->balance == 1 || current_mark->balance == -1) {
+                break;
+            }
+
+        // If balance factor <= -2 then left tree needs rebalancing
+        } else if (current_mark->balance <= -2) {
+            // Balance left tree
+
+            // If the child is positive (reverse of parent),
+            // then a left_right rotation is needed instead
+            if (current_mark->link[LEFT]->balance > 0) {
+                current_mark = (root_node ? left_right() : left_right(current_mark));
+            } else {
+                current_mark = (root_node ? right() : right(current_mark));
+            }
+
+            // If these fixed the balance here, then break here
+            if (current_mark->balance == 1 || current_mark->balance == -1) {
+                break;
+            }
+        }
+
+        // If this is the root node, end here
+        if (root_node) {
+            break;
+        }
+
+        // Move to the parent, and update it's balance factor
+        int8_t modifier = -1;
+        if (current_mark->is_left()) {
+            modifier = 1;
+        }
+        current_mark = current_mark->parent;
+        current_mark->balance += modifier;
+    }
+}
+
+/* #endregion */
+
+/* #region simple modifications */
 
 /**
  * @brief Places a new mark into this tree, sorting it into the correct position
@@ -698,6 +1017,15 @@ void mark_tree::balance_ancestors(bookmark* current_mark, int8_t change) {
 void mark_tree::insert(bookmark* new_mark) {
 
     bookmark* current_mark = root_mark;
+
+    // Check if the tree hasn't been created yet
+    if (current_mark == 0) {
+        root_mark = new_mark;
+        root_mark->flags &= ~(LEFT_CHILD | RIGHT_CHILD);
+        root_mark->balance = 0;
+        return;
+    }
+
     int8_t balance_change;
 
     // Search through the tree to find the correct spot for the new mark
@@ -734,23 +1062,17 @@ void mark_tree::insert(bookmark* new_mark) {
         // If the direction doesn't have a child then put the new mark there
         // and break, otherwise just travel down that path
         if (direction == LEFT) {
-            if (!(current_mark->flags & LEFT_CHILD)) {
-                current_mark->flags |= LEFT_CHILD;
-                current_mark->link[LEFT] = new_mark;
+            if (!(current_mark->has_left())) {
+                current_mark->set_left(new_mark);
                 balance_change = -1;
-                new_mark->parent = current_mark;
-                new_mark->flags &= ~(IS_RIGHT_CHILD);
                 break;
             } else {
                 current_mark = current_mark->link[LEFT];
             }
         } else {
-            if (!(current_mark->flags & RIGHT_CHILD)) {
-                current_mark->flags |= RIGHT_CHILD;
-                current_mark->link[RIGHT] = new_mark;
-                balance_change= 1;
-                new_mark->parent = current_mark;
-                new_mark->flags |= IS_RIGHT_CHILD;
+            if (!(current_mark->has_right())) {
+                current_mark->set_right(new_mark);
+                balance_change = 1;
                 break;
             } else {
                 current_mark = current_mark->link[RIGHT];
@@ -759,9 +1081,14 @@ void mark_tree::insert(bookmark* new_mark) {
     }
 
     // Rebalance the tree
-    balance_ancestors(current_mark, balance_change);
+    balance_insertion(current_mark, balance_change);
 }
 
+/**
+ * @brief Removes a mark based on it's start address
+ * 
+ * @param target_start  Start address of the mark to be removed
+ */
 void mark_tree::remove(void* target_start) {
 
     // Find the target mark in the tree
@@ -771,6 +1098,12 @@ void mark_tree::remove(void* target_start) {
     seperate(target_mark);
 }
 
+/**
+ * @brief Removes a mark based on it's start address and size
+ * 
+ * @param target_start  Start address of the mark to be removed
+ * @param size          Size of the mark to be removed
+ */
 void mark_tree::remove(void* target_start, size_t size) {
 
     // Find the target mark in the tree, assisted by the size
@@ -780,60 +1113,431 @@ void mark_tree::remove(void* target_start, size_t size) {
     seperate(target_mark);
 }
 
+/**
+ * @brief Seperates/deletes a certain mark from the rest of the tree,
+ *        keeping all other marks intact
+ * 
+ * @param target_mark   Mark to be deleted
+ */
 void mark_tree::seperate(bookmark* target_mark) {
 
-    int8_t balance_change;
-
-    // Check if the mark has children
-    bool right_child = target_mark->flags & RIGHT_CHILD;
-    bool left_child = target_mark->flags & LEFT_CHILD;
-
-    // If it has no children, the process is very easy
-    if (!(right_child) && !(left_child)) {
-
-        if (target_mark->flags & IS_RIGHT_CHILD) {
-            target_mark->parent->flags &= ~(RIGHT_CHILD);
-            balance_change = -1;
-        } else {
-            target_mark->parent->flags &= ~(LEFT_CHILD);
-            balance_change = 1;
-        }
-
-    // Only right child
-    } else if (right_child && !left_child) {
-
-        if (target_mark->flags & IS_RIGHT_CHILD) {
-            target_mark->parent->link[RIGHT] = target_mark->link[RIGHT];
-            balance_change = -1;
-        } else {
-            target_mark->parent->link[LEFT] = target_mark->link[RIGHT];
-            target_mark->link[RIGHT]->flags &= ~(IS_RIGHT_CHILD);
-            balance_change = 1;
-        }
-
-        target_mark->link[RIGHT]->parent = target_mark->parent;
-
-    // Only left child
-    } else if (left_child && !right_child) {
-
-        if (target_mark->flags & IS_RIGHT_CHILD) {
-            target_mark->parent->link[RIGHT] = target_mark->link[LEFT];
-            target_mark->link[RIGHT]->flags |= IS_RIGHT_CHILD;
-            balance_change = -1;
-        } else {
-            target_mark->parent->link[LEFT] = target_mark->link[LEFT];
-            balance_change = 1;
-        }
-
-        target_mark->link[LEFT]->parent = target_mark->parent;
-
-    // It has children on both sides (longest case)
-    } else {
-
-
-
+    // If this is the root node then do something different
+    if (target_mark == root_mark) {
+        seperate_root();
+        return;
     }
 
-    // Rebalance the tree
-    balance_ancestors(target_mark, balance_change);
+    bookmark* parent_mark = target_mark->parent;
+    int8_t balance_change = (target_mark->is_right() ? -1 : 1);
+
+    // Check if the mark has children
+    bool right_child = target_mark->has_right();
+    bool left_child = target_mark->has_left();
+
+    if (right_child && left_child) {
+
+        // It has children on both sides (longest case)
+
+        // Seperate right child
+        mark_tree right (target_mark->link[RIGHT], this->size_sorted, true);
+        target_mark->remove_right();
+
+        // Move left child into target's place
+        if (target_mark->is_right()) {
+            parent_mark->set_right(target_mark->link[LEFT]);
+        } else {
+            parent_mark->set_left(target_mark->link[LEFT]);
+        }
+
+        // Rebalance the tree
+        balance_deletion(parent_mark, balance_change);
+
+        // Put the right child back on (will handle balancing itself)
+        *this = tree_union(*this, right);
+
+    } else {
+
+        if (right_child) {
+
+            // Only a right child
+            if (target_mark->is_right()) {
+                parent_mark->set_right(target_mark->link[RIGHT]);
+            } else {
+                parent_mark->set_left(target_mark->link[RIGHT]);
+            }
+
+        } else if (left_child) {
+
+            // Only a left child
+            if (target_mark->is_right()) {
+                parent_mark->set_right(target_mark->link[LEFT]);
+            } else {
+                parent_mark->set_left(target_mark->link[LEFT]);
+            }
+
+        } else {
+
+            // No children
+            if (target_mark->is_right()) {
+            parent_mark->remove_right();
+            } else {
+                parent_mark->remove_left();
+            }
+
+        }
+
+        // Rebalance the tree
+        balance_deletion(parent_mark, balance_change);
+    }
+}
+
+/**
+ * @brief Removes the root mark from the tree
+ * 
+ */
+void mark_tree::seperate_root() {
+    
+    bookmark* target_mark = root_mark;
+
+    int8_t balance_change = (target_mark->is_right() ? -1 : 1);
+
+    // Check if the mark has children
+    bool right_child = target_mark->has_right();
+    bool left_child = target_mark->has_left();
+
+    if (right_child && left_child) {
+
+        // It has children on both sides (longest case)
+
+        // Seperate right child
+        mark_tree right (target_mark->link[RIGHT], this->size_sorted, true);
+        target_mark->remove_right();
+
+        // Move left child into target's place
+        root_mark = target_mark->link[LEFT];
+
+        // Put the right child back on (will handle balancing itself)
+        *this = tree_union(*this, right);
+
+    } else {
+
+        if (right_child) {
+
+            // Only a right child
+            root_mark = target_mark->link[RIGHT];
+
+        } else if (left_child) {
+
+            // Only a left child
+            root_mark = target_mark->link[LEFT];
+
+        } else {
+
+            // No children
+            root_mark = 0;
+
+        }
+
+        // No rebalancing needs to be done
+    }
+}
+
+/* #endregion */
+
+/* #endregion */
+
+/* #region set operations */
+
+/**
+ * @brief Joins a smaller right tree onto a larger left one
+ * 
+ * @param left          Left tree
+ * @param left_height   Height of the left tree
+ * @param joiner        Joiner mark which will be added to the combined tree
+ * @param right         Right tree
+ * @param right_height  Height of the right tree
+ * @return mark_tree    New combined tree
+ */
+mark_tree join_right(mark_tree left, unsigned int left_height, bookmark* joiner,
+                     mark_tree right, unsigned int right_height) {
+
+    bookmark* insertion_point = left.root_mark;
+
+    // Determine the correct insertion point
+    while (left_height > right_height) {
+        insertion_point = insertion_point->link[RIGHT];
+        left_height--;
+    }
+
+    insertion_point->parent->set_right(joiner);
+    joiner->set_left(insertion_point);
+    joiner->set_right(right.root_mark);
+    joiner->balance = 0;
+
+    left.balance_insertion(joiner->parent, 1);
+
+    return left;
+};
+
+/**
+ * @brief Joins a smaller left tree onto a larger right one
+ * 
+ * @param left          Left tree
+ * @param left_height   Height of the left tree
+ * @param joiner        Joiner mark which will be added to the combined tree
+ * @param right         Right tree
+ * @param right_height  Height of the right tree
+ * @return mark_tree    New combined tree
+ */
+mark_tree join_left(mark_tree left, unsigned int left_height, bookmark* joiner,
+                     mark_tree right, unsigned int right_height) {
+
+    bookmark* insertion_point = right.root_mark;
+
+    // Determine the correct insertion point
+    while (left_height < right_height) {
+        insertion_point = insertion_point->link[LEFT];
+        right_height--;
+    }
+
+    insertion_point->parent->set_left(joiner);
+    joiner->set_right(insertion_point);
+    joiner->set_left(left.root_mark);
+    joiner->balance = 0;
+
+    right.balance_insertion(joiner->parent, -1);
+
+    return right;
+};
+
+/**
+ * @brief Joins a left tree to a right tree, with an additional joiner
+ *        bookmark. For all elements of both trees, left < joiner < right
+ *        must be true. It is assumed that the trees have the same
+ *        style of sorting.
+ * 
+ * @param left          Left tree
+ * @param joiner        New mark which will be used to combine the trees
+ * @param right         Right tree
+ * @return mark_tree    Combined tree made of (left + joiner + right) 
+ */
+mark_tree join(mark_tree left, bookmark* joiner, mark_tree right) {
+
+    unsigned int left_height = left.get_height();
+    unsigned int right_height = right.get_height();
+
+    if (left_height > (right_height + 1)) {
+        return join_right(left, left_height, joiner, right, right_height);
+    } else if (right_height > (left_height + 1)) {
+        return join_left(left, left_height, joiner, right, right_height);
+    } else {
+
+        // These trees can just be joined by creating a new tree,
+        // with the joiner as the root node, and the two trees
+        // as it's child subtrees.
+        mark_tree new_tree (joiner, right.size_sorted);
+        if (left_height > 0) 
+            new_tree.root_mark->set_left(left.root_mark);
+        if (right_height > 0)
+            new_tree.root_mark->set_right(right.root_mark);
+
+        // Fix the balance of the joiner
+        joiner->balance = (right_height - left_height);
+
+        return new_tree;
+    }
+};
+
+/**
+ * @brief Splits the target tree into two new trees, left_tree and
+ *        right_tree, based on what's smaller or larger than the 
+ *        key mark, sorted by size
+ * 
+ * @param left_tree     Blank &tree to be filled with marks smaller than key
+ * @param right_tree    Blank &tree to be filled with marks larger than key
+ * @param target_tree   Tree to be split into left_tree and right_tree
+ * @param key           Key mark to determine how the target is split
+ */
+void split_size(mark_tree& left_tree, mark_tree& right_tree, 
+           mark_tree target_tree, bookmark* key) {
+
+    // Check if the tree would be split down the middle
+    if (key->size == target_tree.root_mark->size) {
+
+        if (target_tree.root_mark->has_left()) 
+            left_tree.root_mark = target_tree.root_mark->link[LEFT];
+        if (target_tree.root_mark->has_right()) 
+            right_tree.root_mark = target_tree.root_mark->link[RIGHT];
+
+    } else if (key->size < target_tree.root_mark->size) {
+
+        // Go down the left side (if it exists)
+        if (target_tree.root_mark->has_left()) {
+            mark_tree right_derivative (false);
+            bookmark* derivative_key = target_tree.root_mark;
+
+            mark_tree right_whole (target_tree.root_mark->link[RIGHT], 
+                                   true, true);
+
+            target_tree.root_mark = target_tree.root_mark->link[LEFT];
+            split_size(left_tree, right_derivative, target_tree, key);
+
+            right_tree = join(right_derivative, derivative_key, right_whole);
+        } else {
+            right_tree.insert(target_tree.root_mark);
+        }
+
+    } else {
+
+        // Go down the right side (if it exists)
+        if (target_tree.root_mark->has_right()) {
+            mark_tree left_derivative (false);
+            bookmark* derivative_key = target_tree.root_mark;
+
+            mark_tree left_whole (target_tree.root_mark->link[RIGHT], 
+                                   true, true);
+            
+            target_tree.root_mark = target_tree.root_mark->link[RIGHT];
+            split_size(left_derivative, right_tree, target_tree, key);
+
+            left_tree = join(left_whole, derivative_key, left_derivative);
+        } else {
+            left_tree.insert(target_tree.root_mark);
+        }
+
+    }
+}
+
+/**
+ * @brief Splits the target tree into two new trees, left_tree and
+ *        right_tree, based on what's smaller or larger than the 
+ *        key mark, sorted by start address
+ * 
+ * @param left_tree     Blank &tree to be filled with marks smaller than key
+ * @param right_tree    Blank &tree to be filled with marks larger than key
+ * @param target_tree   Tree to be split into left_tree and right_tree
+ * @param key           Key mark to determine how the target is split
+ */
+void split_addr(mark_tree& left_tree, mark_tree& right_tree, 
+           mark_tree target_tree, bookmark* key) {
+
+    // Check if the tree would be split down the middle
+    if (key->start == target_tree.root_mark->start) {
+
+        if (target_tree.root_mark->has_left()) 
+            left_tree.root_mark = target_tree.root_mark->link[LEFT];
+        if (target_tree.root_mark->has_right()) 
+            right_tree.root_mark = target_tree.root_mark->link[RIGHT];
+
+    } else if (key->start < target_tree.root_mark->start) {
+
+        // Go down the left side (if it exists)
+        if (target_tree.root_mark->has_left()) {
+            mark_tree right_derivative (false);
+            bookmark* derivative_key = target_tree.root_mark;
+
+            mark_tree right_whole (target_tree.root_mark->link[RIGHT], 
+                                   false, true);
+
+            target_tree.root_mark = target_tree.root_mark->link[LEFT];
+            split_addr(left_tree, right_derivative, target_tree, key);
+
+            right_tree = join(right_derivative, derivative_key, right_whole);
+        } else {
+            right_tree.insert(target_tree.root_mark);
+        }
+
+    } else {
+
+        // Go down the right side (if it exists)
+        if (target_tree.root_mark->has_right()) {
+            mark_tree left_derivative (false);
+            bookmark* derivative_key = target_tree.root_mark;
+
+            mark_tree left_whole (target_tree.root_mark->link[LEFT], 
+                                   false, true);
+            
+            target_tree.root_mark = target_tree.root_mark->link[RIGHT];
+            split_addr(left_derivative, right_tree, target_tree, key);
+
+            left_tree = join(left_whole, derivative_key, left_derivative);
+        } else {
+            left_tree.insert(target_tree.root_mark);
+        }
+
+    }
+}
+
+/**
+ * @brief Splits the target tree into two new trees, left_tree and
+ *        right_tree, based on what's smaller or larger than the 
+ *        key mark.
+ * 
+ * @param left_tree     Blank &tree to be filled with marks smaller than key
+ * @param right_tree    Blank &tree to be filled with marks larger than key
+ * @param target_tree   Tree to be split into left_tree and right_tree
+ * @param key           Key mark to determine how the target is split
+ */
+void split(mark_tree& left_tree, mark_tree& right_tree, 
+           mark_tree target_tree, bookmark* key) {
+
+    // Refer to the correct splitting function
+    if (target_tree.size_sorted) {
+        left_tree.size_sorted = true;
+        right_tree.size_sorted = true;
+        split_size(left_tree, right_tree, target_tree, key);
+    } else {
+        left_tree.size_sorted = false;
+        right_tree.size_sorted = false;
+        split_addr(left_tree, right_tree, target_tree, key);
+    }
+};
+
+/**
+ * @brief Combines two trees
+ * 
+ * @param tree_one      First tree
+ * @param tree_two      Second tree
+ * @return mark_tree    Combined tree made from tree_one and tree_two
+ */
+mark_tree tree_union(mark_tree tree_one, mark_tree tree_two) {
+
+    // Get the heights of both trees
+    unsigned int one_height = tree_one.get_height();
+    unsigned int two_height = tree_two.get_height();
+
+    // Check to see if either tree is empty (or close to it)
+    if (tree_one.root_mark == 0) {
+        return tree_two;
+    } else if (one_height <= 1) {
+        tree_two.insert(tree_one.root_mark);
+        return tree_two;
+    }
+
+    if (tree_two.root_mark == 0) {
+        return tree_one;
+    } else if (two_height <= 1) {
+        tree_one.insert(tree_two.root_mark);
+        return tree_one;
+    }
+
+    // Split tree two into two parts
+    mark_tree left_derivative;
+    mark_tree right_derivative;
+    split(left_derivative, right_derivative, tree_two, tree_one.root_mark);
+
+    // Get the two sides of tree one
+    mark_tree one_left (tree_one.root_mark->link[LEFT], tree_one.size_sorted, true);
+    mark_tree one_right (tree_one.root_mark->link[RIGHT], tree_one.size_sorted, true);
+
+    // Combine each pair of sides with eachother
+    left_derivative = tree_union(one_left, left_derivative);
+    right_derivative = tree_union(one_right, right_derivative);
+
+    // Join the two combined sides with eachother, and return the result
+    return join(left_derivative, tree_one.root_mark, right_derivative);
+};
+
+/* #endregion */
+
 }

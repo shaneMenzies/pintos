@@ -17,12 +17,20 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-terminal::terminal(uint32_t foreground=0xffffff, uint32_t background=0x00, uint8_t ega=0x0f) {
-    default_fg = foreground;
-    default_fg = background;
+terminal::terminal(size_t text_size, uint32_t fg, uint32_t bg, uint8_t ega) {
+    default_fg = fg;
+    default_fg = bg;
     default_ega = ega;
-    index = 0;
-    max_chars = 4147200;
+
+    // Allocate the text buffer
+    start = (char*)malloc(text_size);
+    next = start;
+    end = (char*)((uintptr_t)start + text_size);
+
+    // Clear out the keyboard buffer
+    for (char garbage : keyboard) {
+        garbage = 0;
+    }
 }
 
 terminal::~terminal() {
@@ -30,24 +38,22 @@ terminal::~terminal() {
 
 void terminal::write(char* string) {
     unsigned int string_index = 0;
-    char target_char = string[string_index];
+    char target_char = ' ';
 
     // Copy all of the characters in the string into the terminal buffer
     while(target_char != '\0') {
 
-        text[index] = target_char;
+        target_char = string[string_index];
+
+        *next = target_char;
+        next++;
         string_index++;
-        index++;
 
-        if (index >= max_chars) {
-            index = 0;
+        // If reached the end of the buffer, loop back
+        if (next > end) {
+            next = start;
         }
-
-       target_char = string[string_index];
     }
-
-    // Adds null termination 
-    text[index] = '\0';
 }
 
 void terminal::printf(char* format, ...) {
@@ -174,17 +180,17 @@ void terminal::printf(char* format, ...) {
 
 void terminal::show() {
     if (fb.direct_color) {
-        fb_puts(0, 0, text, default_fg, default_bg);
+        fb_puts(0, 0, start, default_fg, default_bg);
     } else {    
-        ega_puts(0, 0, default_ega, text);
+        ega_puts(0, 0, default_ega, start);
     }
 }
 
 void terminal::show(uint32_t fg_color, uint32_t bg_color, uint8_t ega_attributes) {
     if (fb.direct_color) {
-        fb_puts(0, 0, text, fg_color, bg_color);
+        fb_puts(0, 0, start, fg_color, bg_color);
     } else {    
-        ega_puts(0, 0, ega_attributes, text);
+        ega_puts(0, 0, ega_attributes, start);
     }
 }
 

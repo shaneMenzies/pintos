@@ -35,16 +35,13 @@ void kernel_main() {
 
     //kernel_init();
 
-    mb_ptr = (struct mb_info*) 0x10000;
+    mb_ptr = (struct mb_info*) return_ebx();
 
     memory_init(mb_ptr);
 
-    framebuffer_init((struct mb_info*) 0x10000);
+    framebuffer_init(mb_ptr);
 
-    terminal* terminal_0 = (new terminal(0xffffff, 0x000000, 0x0f));
-    terminal_0->default_fg = 0xffffff;
-    terminal_0->default_bg = 0;
-    terminal_0->default_ega = 0x0f;
+    terminal* terminal_0 = (new terminal());
     active_terminal = terminal_0;
 
     char test_string[] = "\nWell howdy there partn'r, this sure is a mighty fine day we got ourselves, now ain't it?\n";

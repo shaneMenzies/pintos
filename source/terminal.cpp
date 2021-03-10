@@ -9,14 +9,6 @@
 
 #include "terminal.h"
 
-#include "memory.h"
-
-#include "display.h"
-#include "libk.h"
-
-#include <stdarg.h>
-#include <stdint.h>
-
 terminal::terminal(size_t text_size, uint32_t fg, uint32_t bg, uint8_t ega) {
     default_fg = fg;
     default_fg = bg;
@@ -34,9 +26,23 @@ terminal::terminal(size_t text_size, uint32_t fg, uint32_t bg, uint8_t ega) {
 }
 
 terminal::~terminal() {
+
+    // Clear text buffer
+    while (end > start) {
+        *end = 0;
+        end--;
+    }
+
+    // Clear keyboard buffer
+    for (char old_char : keyboard) {
+        old_char = 0;
+    }
+
+    // Free the text buffer
+    free(start);
 }
 
-void terminal::write(char* string) {
+void terminal::write(const char* string) {
     unsigned int string_index = 0;
     char target_char = ' ';
 
@@ -56,7 +62,7 @@ void terminal::write(char* string) {
     }
 }
 
-void terminal::printf(char* format, ...) {
+void terminal::printf(const char* format, ...) {
 
     // Start the optional arguments
     va_list args;

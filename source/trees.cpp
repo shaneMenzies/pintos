@@ -7,7 +7,7 @@
  * 
  */
 
-#include "bookmark.h"
+#include "trees.h"
 
 namespace trees {
 
@@ -506,6 +506,129 @@ bookmark* mark_tree::find_suitable(size_t min_size) {
     }
 
     return last_suitable;
+}
+
+/**
+ * @brief Finds the bookmark which contains the requested address
+ * 
+ * @param target_addr   Address to find associated mark for
+ * @return bookmark*    Bookmark containing the requested address
+ */
+bookmark* mark_tree::find_containing(void* target_addr) {
+
+    // Start at root mark
+    bookmark* current_mark = root_mark;
+
+    // Flag for use in looping
+    bool reverse = false;
+
+    // Search left hand side
+    while (1) {
+
+        // Check if this is the target mark
+        if (current_mark->start <= target_addr && current_mark->end >= target_addr) {
+            return current_mark;
+        }
+
+        // Has the reverse flag been set?
+        if (reverse) {
+
+            reverse = false;
+            // Does this mark have a right child?
+            if (current_mark->has_right()) {
+                current_mark = current_mark->link[RIGHT];
+                continue;
+            } else {
+
+                // Reached the end of this path, so go up until we're
+                // at the end of the right children, before going to the 
+                // parent's right child
+                while (1) {
+                    current_mark = current_mark->parent;
+
+                    if (current_mark->is_left()) {
+                        break;
+                    }
+                }
+
+                // If we've returned to the root, then break
+                if (current_mark == root_mark) {
+                    break;
+                }
+
+                reverse = true;
+            }
+
+        // If not going reverse, look at the left child
+        } else {
+
+            // Does this mark have a left child?
+            if (current_mark->flags & LEFT_CHILD) {
+                current_mark = current_mark->link[LEFT];
+            } else {
+                // Reached the end of this path, so go up 1, and to the right child
+                current_mark = current_mark->parent;
+                reverse = true;
+            }
+        }
+
+    }
+
+    // Search right hand side
+    while (1) {
+
+        // Check if this is the target mark
+        if (current_mark->start <= target_addr && current_mark->end >= target_addr) {
+            return current_mark;
+        }
+
+        // Has the reverse flag been set?
+        if (reverse) {
+
+            reverse = false;
+            // Does this mark have a left child?
+            if (current_mark->has_left()) {
+                current_mark = current_mark->link[LEFT];
+            } else {
+
+                // Reached the end of this path, so go up until we're
+                // at the end of the left children, before going to the 
+                // parent's left child
+                while (1) {
+                    current_mark = current_mark->parent;
+
+                    if (current_mark->is_left()) {
+                        break;
+                    }
+                }
+
+                // If we've returned to the root, then break
+                if (current_mark == root_mark) {
+                    break;
+                }
+
+                reverse = true;
+            }
+
+        // If not going reverse, look at the right child
+        } else {
+
+            // Does this mark have a right child?
+            if (current_mark->has_right()) {
+                current_mark = current_mark->link[RIGHT];
+            } else {
+                // Reached the end of this path, so go up 1, and to the left child
+                current_mark = current_mark->parent;
+                reverse = true;
+            }
+        }
+
+    }
+
+    // If it still hasn't been found, then it probably doesn't exist, so
+    // raise an error and return 0
+    raise_error(202, const_cast<char*>("mark_tree::hard_find(void*)"));
+    return 0;
 }
 
 /* #endregion search_functions */

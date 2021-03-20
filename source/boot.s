@@ -38,7 +38,9 @@ stack_top:
 _start:
     mov $stack_top, %esp
 
+    call early_init
     call _init
+    call late_init
     call call_kernel
     call _fini
 

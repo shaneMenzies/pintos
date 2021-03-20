@@ -22,35 +22,23 @@
 #include <stdint.h>
 #include <stddef.h>
 
-struct mb_info* mb_ptr;
-terminal* active_terminal;
-
 extern "C" {
 void call_kernel() {
     kernel_main();
+
 }
+    extern void test_soft_int();
 }
 
 void kernel_main() {
 
-    //kernel_init();
+    active_terminal->clear();
 
-    mb_ptr = (struct mb_info*) return_ebx();
+    char test_string[] = "\nWell howdy there partn'r, this sure is a mighty fine day we got ourselves, now ain't it?\n\0";
 
-    memory_init(mb_ptr);
+    active_terminal->printf(const_cast<char*>("Hi there.\n%s"), test_string);
 
-    framebuffer_init(mb_ptr);
-
-    terminal* terminal_0 = (new terminal());
-    active_terminal = terminal_0;
-
-    char test_string[] = "\nWell howdy there partn'r, this sure is a mighty fine day we got ourselves, now ain't it?\n";
-
-    terminal_0->printf(const_cast<char*>("Hi there.\n%s"), test_string);
-
-    terminal_0->show();
-
-    delete terminal_0;
+    active_terminal->show();
 
     while(1) {}
 }

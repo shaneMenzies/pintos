@@ -9,10 +9,11 @@
 
 #include "terminal.h"
 
-terminal::terminal(size_t text_size, uint32_t fg, uint32_t bg, uint8_t ega) {
-    default_fg = fg;
-    default_fg = bg;
-    default_ega = ega;
+terminal* boot_terminal;
+terminal* active_terminal;
+
+terminal::terminal(size_t text_size, uint32_t fg, uint32_t bg, uint8_t ega) 
+                   : default_fg(fg), default_bg(bg), default_ega(ega) {
 
     // Allocate the text buffer
     start = (char*)malloc(text_size);
@@ -20,9 +21,7 @@ terminal::terminal(size_t text_size, uint32_t fg, uint32_t bg, uint8_t ega) {
     end = (char*)((uintptr_t)start + text_size);
 
     // Clear out the keyboard buffer
-    for (char garbage : keyboard) {
-        garbage = 0;
-    }
+    kb_clear();
 }
 
 terminal::~terminal() {
@@ -34,24 +33,56 @@ terminal::~terminal() {
     }
 
     // Clear keyboard buffer
-    for (char old_char : keyboard) {
-        old_char = 0;
-    }
+    kb_clear();
 
     // Free the text buffer
     free(start);
 }
 
+void terminal::kb_clear() {
+    for (int index = 0; index < KB_BUF_SIZE; index++) {
+        keyboard[index] = 0;
+    }
+}
+
+void terminal::kb_append_c(char new_char) {
+    keyboard[kb_index++] = new_char;
+    keyboard[kb_index] = '\0';
+
+    if (kb_index >= KB_BUF_SIZE)
+        kb_index = 0;
+}
+
+void terminal::kb_append_s(char* string) {
+    
+    unsigned int string_index = 0;
+
+    while (1) {
+        char target_char = string[string_index];
+        keyboard[kb_index++] = target_char;
+
+        if (kb_index >= KB_BUF_SIZE)
+            kb_index = 0;
+        
+        if (target_char == '\0')
+            break;
+    }
+}
+
 void terminal::write(const char* string) {
     unsigned int string_index = 0;
-    char target_char = ' ';
+    char target_char;
 
     // Copy all of the characters in the string into the terminal buffer
-    while(target_char != '\0') {
+    while(1) {
 
         target_char = string[string_index];
 
         *next = target_char;
+
+        if (target_char == '\0')
+            break;
+        
         next++;
         string_index++;
 
@@ -182,6 +213,12 @@ void terminal::printf(const char* format, ...) {
 
     // Deallocate the previously allocated memory
     free((void*)build);
+}
+
+void terminal::clear() {
+    next = start;
+    *next = '\0';
+    fb_blank(default_bg);
 }
 
 void terminal::show() {

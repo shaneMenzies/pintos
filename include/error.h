@@ -5,8 +5,12 @@
 
 #include <stdint.h>
 
-extern uint32_t* error_code_addr;
-extern char** error_caller_addr;
+struct error_code_section {
+    uint32_t code;
+    char* caller;
+};
+
+extern struct error_code_section* error_code_addr;
 
 void set_error_terminal(terminal* new_terminal);
 

@@ -9,12 +9,9 @@
 
 #include "error.h"
 
-#include "terminal.h"
-
-uint32_t* error_code_addr = reinterpret_cast<uint32_t*>(0);
-char** error_caller_addr = reinterpret_cast<char**>(0 + sizeof(uint32_t));
-
 terminal* error_terminal = 0;
+
+struct error_code_section* error_code_addr = 0;
 
 /**
  * @brief Public function to set the error terminal
@@ -48,8 +45,8 @@ void raise_error(uint32_t error_code=0, char* caller=0) {
     // Check to ensure the error terminal exists
     check_error_terminal();
 
-    *error_code_addr = error_code;
-    *error_caller_addr = caller;
+    error_code_addr->code = error_code;
+    error_code_addr->caller = caller;
 
     // Print the error code to the terminal
     const char error_code_format[] = "\nError No. %u in %s:\n\t";
@@ -60,6 +57,8 @@ void raise_error(uint32_t error_code=0, char* caller=0) {
     error_terminal->write(const_cast<char*>(get_code_info(error_code)));
 
     error_terminal->show(0xff2b3d, 0x00, 0b00001100);
+
+    active_terminal = error_terminal;
 }
 
 /**
@@ -72,28 +71,64 @@ const char* get_code_info(uint32_t error_code) {
 
     switch (error_code) {
         case 001:
-            return "Invalid Inputs";
+            return "Invalid Inputs\n";
 
         case 002:
-            return "Purely Virtual Function was called";
+            return "Purely Virtual Function was called\n";
+
+        case 003:
+            return "General Protection Fault Encountered\n";
+
+        case 004:
+            return "Divide By Zero\n";
+
+        case 005:
+            return "Hardware error in memory module\n";
+
+        case 006:
+            return "Overflow exception\n";
+
+        case 007:
+            return "Bound range exceeded\n";
+
+        case 8:
+            return "Invalid Opcode\n";
+
+        case 9:
+            return "Device Not Available\n";
+
+        case 10:
+            return "Double Fault Exception\n";
+
+        case 11:
+            return "Segmentation Fault\n";
+
+        case 12:
+            return "Paging Fault\n";
+
+        case 13:
+            return "Floating Point Exception\n";
+
+        case 14:
+            return "Unaligned memory access with alignment checking enabled.\n";
 
         case 201:
-            return "No Memory Available";
+            return "No Memory Available\n";
 
         case 202:
-            return "Requested Bookmark not found";
+            return "Requested Bookmark not found\n";
 
         case 203:
-            return "Incorrect find for this tree's sorting target";
+            return "Incorrect find for this tree's sorting target\n";
 
         case 204:
-            return "New bookmark already present in tree";
+            return "New bookmark already present in tree\n";
 
         case 301:
-            return "Outside of framebuffer range";
+            return "Outside of framebuffer range\n";
 
         default:
-            return "Unknown Error Code";
+            return "Unknown Error Code\n";
     }
 
 }

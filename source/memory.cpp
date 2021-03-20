@@ -17,6 +17,8 @@ trees::bookmark bootstrap_bank[256];
 void* mkalloc_start;
 void* mkalloc_end;
 
+void* max_phys_address = 0;
+
 void* operator new(size_t size) {
     return malloc(size);
 }
@@ -85,8 +87,8 @@ trees::bookmark* mkalloc() {
  */
 trees::bookmark mmap_to_mark (uint32_t* mmap_addr) {
 
-    void* start = (void*)(*(void**)(mmap_addr + 1));
-    void* end = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(start) + reinterpret_cast<uintptr_t>(*((void**)(mmap_addr + 3))));
+    void* start = (void*)(*(uint64_t*)(mmap_addr + 1));
+    void* end = (void*)((uintptr_t)start + (uintptr_t)(*(uint64_t*)(mmap_addr + 3)));
     uint32_t flags = *(mmap_addr + 5);
 
     trees::bookmark return_mark(start, end);
@@ -126,6 +128,10 @@ void memory_init(struct mb_info* mb_addr) {
         *converted_mark = mmap_to_mark((uint32_t*)mmap_index);
 
         if (converted_mark->flags & trees::MARK_FREE) {
+            // Check if this is a new greatest accessible address
+            if (converted_mark->end > max_phys_address)
+                max_phys_address = converted_mark->end;
+
             free_marks.insert(converted_mark);
         } else {
             used_marks.insert(converted_mark);
@@ -133,9 +139,6 @@ void memory_init(struct mb_info* mb_addr) {
 
         mmap_index = (unsigned char*) ((uintptr_t)mmap_index + size);
     }
-
-    // Allocate first few bytes of memory for error codes
-    talloc(error_code_addr, (sizeof(uint32_t) + sizeof(char*)));
 }
 
 /**
@@ -172,8 +175,6 @@ void* malloc(size_t size) {
 
         // Don't need to put the mark back, so it can just be reused
         new_mark = target_mark;
-        new_mark->balance = 0;
-        new_mark->flags = 0;
     }
 
     // Prepare, and insert, the new mark
@@ -186,11 +187,7 @@ void* malloc(size_t size) {
 }
 
 /**
- * @brief Allocates the area of memory at a certain address. Requires 
- *        there to exist a certain mark with a start address value
- *        at the requested address. Often will result in strange
- *        and/or inconsistent results if used outside of certain very
- *        specific cases.
+ * @brief Allocates the area of memory at a certain address. 
  * 
  * @param target_address    Address to start allocation at
  * @param size              Size of memory to allocate
@@ -198,42 +195,85 @@ void* malloc(size_t size) {
  */
 void* talloc(void* target_address, size_t size) {
 
+    void* end_address = (void*)((uintptr_t)target_address + size);
+
     // Find mark to split up
-    trees::bookmark* target_mark = free_marks.find(target_address);
-    free_marks.seperate(target_mark);
+    trees::bookmark* first_mark = free_marks.find_containing(target_address);
 
-    // Save the address to return, and prepare a new mark
-    void* return_address = target_mark->start;
-    trees::bookmark* new_mark;
+    trees::bookmark* target_mark = first_mark;
 
-    // Determine if the mark should be put back or not
-    if (target_mark->size > size) {
+    trees::bookmark* last_mark;
+    bool have_last_mark = false;
 
-        // Needs to be put back, and a new mark is needed
-        target_mark->start = (void*)((uintptr_t)target_mark->start + size);
-        target_mark->size = (size_t)((uintptr_t)target_mark->end 
-                                     - (uintptr_t)target_mark->start);
-        target_mark->flags = 0;
-        target_mark->balance = 0;
-        free_marks.insert(target_mark);
+    // Do any other marks need split up too?
+    if (target_mark->end < end_address) {
 
-        new_mark = mkalloc();
-        new_mark->start = return_address;
+        while (target_mark->end < end_address) {
+            target_mark = free_marks.find((void*)((uintptr_t)target_mark->end + 1));
+            free_marks.seperate(target_mark);
+        }
+        last_mark = target_mark;
+        have_last_mark = true;
+    }
+    
+    free_marks.seperate(first_mark);
 
+    trees::bookmark* new_mark = 0;
+
+    // Split the old marks
+    if (!have_last_mark) {
+
+        // If we cut space out of just the start, we don't need a new mark
+        if (first_mark->start == target_address) {
+            first_mark->start = (void*)((uintptr_t)end_address + 1);
+            first_mark->size = first_mark->size - size;
+            first_mark->balance = 0;
+            first_mark->flags = 0;
+            free_marks.insert(first_mark);
+        } else {
+            // Get a new mark
+            new_mark = mkalloc();
+
+            // Correct these marks
+            new_mark->start = first_mark->start;
+            new_mark->end = (void*)((uintptr_t)target_address - 1);
+            new_mark->size = (size_t)((uintptr_t)new_mark->end - (uintptr_t)new_mark->start);
+            first_mark->start = (void*)((uintptr_t)end_address + 1);
+            first_mark->size = (size_t)((uintptr_t)first_mark->end - (uintptr_t)first_mark->start);
+            first_mark->balance = 0;
+            first_mark->flags = 0;
+
+            // Insert them
+            free_marks.insert(first_mark);
+            free_marks.insert(new_mark);
+        }
     } else {
 
-        // Don't need to put the mark back, so it can just be reused
-        new_mark = target_mark;
-        new_mark->balance = 0;
-        new_mark->flags = 0;
-    }
+        // First mark has had it's back cut off
+        first_mark->end = (void*)((uintptr_t)target_address - 1);
+        first_mark->size = (size_t)((uintptr_t)first_mark->end - (uintptr_t)first_mark->start);
+        first_mark->balance = 0;
+        first_mark->flags = 0;
 
-    // Prepare, and insert, the new mark
+        // Last mark has had it's front cut off
+        last_mark->start = (void*)((uintptr_t)end_address + 1);
+        last_mark->size = (size_t)((uintptr_t)last_mark->end - (uintptr_t)last_mark->start);
+        last_mark->balance = 0;
+        last_mark->flags = 0;
+
+        // Put them back
+        free_marks.insert(first_mark);
+        free_marks.insert(last_mark);
+    }
+    
+    // Prepare, and insert, a new used space mark
+    new_mark = mkalloc();
+    new_mark->start = target_address;
     new_mark->size = size;
-    new_mark->end = (void*)((uintptr_t)return_address + size);
+    new_mark->end = end_address;
     used_marks.insert(new_mark);
 
-    return return_address;
+    return target_address;
 }
 
 /**

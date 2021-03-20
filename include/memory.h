@@ -5,8 +5,11 @@
 #include <stdint.h>
 
 #include "bookmark.h"
+#include "trees.h"
 #include "multiboot.h"
 #include "error.h"
+
+extern void* max_phys_address;
 
 trees::bookmark* mkalloc();
 

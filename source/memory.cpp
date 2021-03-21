@@ -1,5 +1,5 @@
 /**
- * @file memory.c
+ * @file memory.cpp
  * @author Shane Menzies
  * @brief Functions for memory management
  * @date 02/14/21

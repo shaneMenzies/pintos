@@ -1,5 +1,5 @@
 /**
- * @file init.c
+ * @file init.cpp
  * @author Shane Menzies
  * @brief Initializes various requirements required by the main kernel
  * @date 02/24/21

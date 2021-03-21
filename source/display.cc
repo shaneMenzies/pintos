@@ -1,5 +1,5 @@
 /**
- * @file display.c
+ * @file display.cc
  * @author Shane Menzies
  * @brief Functions dealing with basic display functions around the 
  *        framebuffer or vga text console

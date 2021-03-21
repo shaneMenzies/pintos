@@ -1,5 +1,5 @@
 /**
- * @file kernel.c
+ * @file kernel.cpp
  * @author Shane Menzies
  * @brief Basic kernel functionality
  * @date 02/07/21

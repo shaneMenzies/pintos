@@ -1,5 +1,5 @@
 /**
- * @file terminal.c
+ * @file terminal.cpp
  * @author Shane Menzies
  * @brief Functions and structures for terminal functionality
  * @date 02/14/21

@@ -1,5 +1,5 @@
 /**
- * @file keyboard.h
+ * @file keyboard.cpp
  * @author Shane Menzies
  * @brief Keyboard functions
  * @date 03/16/21

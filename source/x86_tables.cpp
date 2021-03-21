@@ -11,15 +11,36 @@
 
 namespace x86_tables {
 
-    void* get_offset(idt_gate target) {
+    /**
+     * @brief Get the offset of the target IDT Gate
+     * 
+     * @param target    Target IDT Gate
+     * @return void*    Offset of the target gate
+     */
+    void* get_offset(const idt_gate target) {
         return (void*)((target.offset_2 << 16) | target.offset_1);
     }
 
+    /**
+     * @brief Set the offset of the target IDT Gate
+     * 
+     * @param target        Target IDT Gate
+     * @param new_offset    New offset for the target gate
+     */
     void set_offset(idt_gate& target, void* new_offset) {
         target.offset_1 = (uint16_t)((uintptr_t)new_offset & 0xffff);
         target.offset_2 = (uint16_t)(((uintptr_t)new_offset >> 16) & 0xffff);
     }
 
+    /**
+     * @brief Set all of the values of a certain gdt segment descriptor
+     * 
+     * @param target    Target segment descriptor
+     * @param limit     Size Limit
+     * @param base      Base address
+     * @param type      Type field
+     * @param flags     Flags field
+     */
     void set_segment(gdt_segment& target, uint32_t limit, void* base, 
                      uint8_t type, uint8_t flags) {
 
@@ -37,6 +58,17 @@ namespace x86_tables {
         target.type_byte = type;
     }
 
+    /**
+     * @brief Set all of the values of a certain IDT gate descriptor
+     * 
+     * @param target        IDT Gate to be modified
+     * @param offset        Offset of interrupt handler
+     * @param gdt_selector  GDT Index of a segment selector
+     * @param min_privilege Minimum privilege level for the handler
+     * @param type          Type field
+     * @param present       Whether this gate is valid or not
+     * @param task_gate     Whether this is a task gate or not
+     */
     void set_gate(idt_gate& target, void* offset, uint16_t gdt_selector, 
             uint8_t min_privilege, uint8_t type, bool present, bool task_gate) {
 

@@ -11,6 +11,10 @@
 
 namespace keyboard {
 
+    /**
+     * @brief Translation of keyboard scan code set 1
+     * 
+     */
     char code_translation[0xff] = {
         0,  // 0x00 - non-US-1
         0,  // 0x01 - Escape

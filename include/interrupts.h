@@ -62,6 +62,7 @@ namespace interrupts {
     extern const size_t IDT_SIZE;
 
     void idt_init();
+    void interrupts_init();
 
     void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame));
     void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame, unsigned int error_code));

@@ -404,8 +404,8 @@ void draw_rect_fill(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, uint
  * @param x             X value for top-left pixel of character
  * @param y             Y value for top-left pixel of character
  * @param target_char   Character to draw
- * @param fg_color      Foreground color
- * @param bg_color      Background color
+ * @param fg_color      Foreground character color
+ * @param bg_color      Background character color
  */
 void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, uint32_t bg_color) {
 
@@ -433,6 +433,15 @@ void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, uint32
    } 
 }
 
+/**
+ * @brief Draws a null-terminated string to the framebuffer
+ * 
+ * @param x             X-value for top-left pixel of first char in the string
+ * @param y             Y value for top-left pixel of first char in the string
+ * @param string        Null-terminated string to be drawn
+ * @param fg_color      Foreground character color
+ * @param bg_color      Background character color
+ */
 void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t bg_color) {
 
     uint8_t char_width = glyph_width;
@@ -492,6 +501,11 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t 
 
 }
 
+/**
+ * @brief Blank the entire framebuffer with a certain color
+ * 
+ * @param color     Color to fill screen with
+ */
 void fb_blank(uint32_t color) {
 
     for (uint32_t y = 0; y <= fb.height; y++) {
@@ -501,7 +515,6 @@ void fb_blank(uint32_t color) {
     }
 
 }
-
 
 /* #endregion */
 

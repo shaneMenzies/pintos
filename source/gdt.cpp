@@ -16,6 +16,10 @@ extern "C" {
 
 x86_tables::gdt_segment gdt_table[3];
 
+/**
+ * @brief Initializes the Global Descriptor Table
+ * 
+ */
 void gdt_init() {
 
     // Null selector

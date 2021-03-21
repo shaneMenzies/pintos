@@ -318,6 +318,10 @@ namespace interrupts {
         PIC_EOI(15);
     }
 
+    /**
+     * @brief Default handler for keyboard interrupts on INT 33
+     * 
+     */
     __attribute__((interrupt)) void keyboard_handler(interrupt_frame* frame) {
 
         (void) frame;

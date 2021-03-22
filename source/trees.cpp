@@ -31,7 +31,7 @@ bookmark::bookmark(void* start_addr, size_t new_size) : start(start_addr), size(
  * @return true     If it does have a left child
  * @return false    If it doesn't have a left child
  */
-bool bookmark::has_left() {
+inline bool bookmark::has_left() {
     if (this->flags & LEFT_CHILD) {
         return true;
     } else {
@@ -45,7 +45,7 @@ bool bookmark::has_left() {
  * @return true     If it does have a right child
  * @return false    If it doesn't have a right child
  */
-bool bookmark::has_right() {
+inline bool bookmark::has_right() {
     if (this->flags & RIGHT_CHILD) {
         return true;
     } else {
@@ -60,7 +60,7 @@ bool bookmark::has_right() {
  * @return true     If it has a child on each side
  * @return false    If it doesn't have a child on each side
  */
-bool bookmark::has_both() {
+inline bool bookmark::has_both() {
     if ((this->flags & (RIGHT_CHILD | LEFT_CHILD)) == (RIGHT_CHILD | LEFT_CHILD))
         return true;
     else 
@@ -74,7 +74,7 @@ bool bookmark::has_both() {
  * @return true     If it has a child on either side
  * @return false    If it doesn't have a child
  */
-bool bookmark::has_any() {
+inline bool bookmark::has_any() {
     if (this->flags & (RIGHT_CHILD | LEFT_CHILD))
         return true;
     else 
@@ -87,7 +87,7 @@ bool bookmark::has_any() {
  * @return true     If it is a left child
  * @return false    If it isn't a left child
  */
-bool bookmark::is_left() {
+inline bool bookmark::is_left() {
     if (!(this->flags & IS_RIGHT_CHILD)) {
         return true;
     } else {
@@ -101,7 +101,7 @@ bool bookmark::is_left() {
  * @return true     If it is a right child
  * @return false    If it isn't a right child
  */
-bool bookmark::is_right() {
+inline bool bookmark::is_right() {
     if (this->flags & IS_RIGHT_CHILD) {
         return true;
     } else {
@@ -114,7 +114,7 @@ bool bookmark::is_right() {
  * 
  * @param new_child     New child
  */
-void bookmark::set_right(bookmark* new_child) {
+inline void bookmark::set_right(bookmark* new_child) {
     this->link[RIGHT] = new_child;
     this->flags |= RIGHT_CHILD;
     new_child->parent = this;
@@ -126,7 +126,7 @@ void bookmark::set_right(bookmark* new_child) {
  * 
  * @param new_child     New child
  */
-void bookmark::set_left(bookmark* new_child) {
+inline void bookmark::set_left(bookmark* new_child) {
     this->link[LEFT] = new_child;
     this->flags |= LEFT_CHILD;
     new_child->parent = this;
@@ -138,7 +138,7 @@ void bookmark::set_left(bookmark* new_child) {
  * 
  * @return bookmark*    Right child
  */
-bookmark* bookmark::get_right() {
+inline bookmark* bookmark::get_right() {
     return this->link[RIGHT];
 }
 
@@ -147,7 +147,7 @@ bookmark* bookmark::get_right() {
  * 
  * @return bookmark*    Left child
  */
-bookmark* bookmark::get_left() {
+inline bookmark* bookmark::get_left() {
     return this->link[LEFT];
 }
 
@@ -156,7 +156,7 @@ bookmark* bookmark::get_left() {
  * 
  * @return bookmark*    Parent
  */
-bookmark* bookmark::get_parent() {
+inline bookmark* bookmark::get_parent() {
     return this->parent;
 }
 
@@ -164,7 +164,7 @@ bookmark* bookmark::get_parent() {
  * @brief Removes this mark's connection to it's right child
  * 
  */
-void bookmark::remove_right() {
+inline void bookmark::remove_right() {
     this->flags &= ~(RIGHT_CHILD);
 }
 
@@ -172,7 +172,7 @@ void bookmark::remove_right() {
  * @brief Removes this mark's connection to it's left child
  * 
  */
-void bookmark::remove_left() {
+inline void bookmark::remove_left() {
     this->flags &= ~(LEFT_CHILD);
 }
  
@@ -180,7 +180,7 @@ void bookmark::remove_left() {
   * @brief Removes this mark's connections to any children
   * 
   */
-void bookmark::remove_any() {
+inline void bookmark::remove_any() {
     this->flags &= !(LEFT_CHILD | RIGHT_CHILD);
 }
 

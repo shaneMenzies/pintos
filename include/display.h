@@ -1,16 +1,25 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include "multiboot.h"
+#include "display.h"
+#include "ibm_pc.h"
 
-#include <stdbool.h>
+#include "kernel.h"
+#include "memory.h"
+#include "multiboot.h"
+#include "error.h"
+#include "libk.h"
+
 #include <stdint.h>
+#include <stdbool.h>
 
 extern bool fb_initialized;
 
 struct fb_info {
 
     void* address;
+    void* end;
+    size_t size;
     uint32_t pitch;
     uint32_t width;
     uint32_t height;
@@ -42,20 +51,24 @@ void framebuffer_init(struct mb_info* mb_addr);
 
 void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character);
 
-uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color);
+inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color);
 
 void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]);
 
 void ega_blank(uint8_t ega_attributes);
 
-void draw_pixel(uint32_t x, uint32_t y, uint32_t color);
+inline void* get_pixel_address(uint32_t x, uint32_t y);
+
+inline void draw_pixel(uint32_t x, uint32_t y, uint32_t color);
+
+void draw_pixel(void* target_address, uint32_t color);
 
 void draw_line(int x0, int y0, int x1, int y1, uint32_t color);
 
 void draw_rect(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, 
                uint32_t color, uint16_t thickness, bool inside_border);
 
-void draw_rect_fill(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, 
+void draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, 
                     uint32_t color);
 
 void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, 
@@ -65,5 +78,7 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color,
              uint32_t bg_color);
 
 void fb_blank(uint32_t color);
+
+void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg);
 
 #endif

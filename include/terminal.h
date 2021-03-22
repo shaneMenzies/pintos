@@ -9,8 +9,8 @@
 #include "display.h"
 #include "libk.h"
 
-extern terminal* boot_terminal;
-extern terminal* active_terminal;
+extern visual_terminal* boot_terminal;
+extern visual_terminal* active_terminal;
 
 uint16_t stringify(char* target_buffer, int number, uint8_t base);
 

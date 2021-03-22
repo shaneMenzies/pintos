@@ -36,7 +36,7 @@ void kernel_main() {
 
     char test_string[] = "\nWell howdy there partn'r, this sure is a mighty fine day we got ourselves, now ain't it?\n\0";
 
-    active_terminal->printf(const_cast<char*>("Hi there.\n%s"), test_string);
+    active_terminal->tprintf(const_cast<char*>("Hi there.\n%s"), test_string);
 
     active_terminal->show();
 

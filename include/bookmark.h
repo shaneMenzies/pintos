@@ -19,24 +19,24 @@ namespace trees {
             char balance;
             unsigned char flags;
 
-            bool has_left();
-            bool has_right();
-            bool has_both();
-            bool has_any();
+            inline bool has_left();
+            inline bool has_right();
+            inline bool has_both();
+            inline bool has_any();
 
-            bool is_left();
-            bool is_right();
+            inline bool is_left();
+            inline bool is_right();
 
-            void set_right(bookmark* new_child);
-            void set_left(bookmark* new_child);
+            inline void set_right(bookmark* new_child);
+            inline void set_left(bookmark* new_child);
 
-            bookmark* get_right();
-            bookmark* get_left();
-            bookmark* get_parent();
+            inline bookmark* get_right();
+            inline bookmark* get_left();
+            inline bookmark* get_parent();
 
-            void remove_right();
-            void remove_left();
-            void remove_any();
+            inline void remove_right();
+            inline void remove_left();
+            inline void remove_any();
     };
 
     enum mark_flags {

@@ -1,5 +1,5 @@
 /**
- * @file display.cc
+ * @file display.cpp
  * @author Shane Menzies
  * @brief Functions dealing with basic display functions around the 
  *        framebuffer or vga text console
@@ -9,15 +9,6 @@
  */
 
 #include "display.h"
-#include "ibm_pc.h"
-
-#include "kernel.h"
-#include "memory.h"
-#include "multiboot.h"
-#include "error.h"
-
-#include <stdint.h>
-#include <stdbool.h>
 
 bool fb_initialized = false;
 
@@ -39,6 +30,8 @@ void framebuffer_init(struct mb_info* mb_addr) {
         fb.height = mb_addr->framebuffer_height;
         fb.depth = mb_addr->framebuffer_bpp;
         fb.pixel_size = mb_addr->framebuffer_pitch / mb_addr->framebuffer_width;
+        fb.size = (size_t)(fb.pitch * fb.height);
+        fb.end = (void*)((uintptr_t)fb.address + fb.size);
 
         // Set the correct info into the framebuffer info structure
         if (mb_addr->framebuffer_type == 0) {
@@ -108,7 +101,7 @@ void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character) {
  * @param bg_color      4-bit color-code for background color
  * @return uint8_t      EGA/VGA Attribute value
  */
-uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color) {
+inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color) {
     return (uint8_t)(((bg_color & 0b1111) << 4) | (fg_color & 0b1111));
 }
 
@@ -180,6 +173,16 @@ void ega_blank(uint8_t ega_attributes) {
 
 /* #region FRAMEBUFFER FUNCTIONS */
 
+inline void* get_pixel_address(uint32_t x, uint32_t y) {
+
+    if (x > fb.width || y > fb.height) {
+        raise_error(301, const_cast<char*>("draw_pixel"));
+        return 0;
+    }
+
+    return (void*)((uint32_t)fb.address + (y * fb.pitch) + (x * fb.pixel_size));
+}
+
 /**
  * @brief Places a pixel of a certain color at the specified position
  * 
@@ -187,14 +190,23 @@ void ega_blank(uint8_t ega_attributes) {
  * @param y         Y position
  * @param color     Color of pixel to be drawn
  */
-void draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
+inline void draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
 
-    if (x > fb.width || y > fb.height) {
+    draw_pixel(get_pixel_address(x, y), color);
+}
+
+/**
+ * @brief Places a pixel of a certain color at the specified address
+ * 
+ * @param target_address    Target address to draw the pixel
+ * @param color             Color of pixel to be drawn
+ */
+void draw_pixel(void* target_address, uint32_t color) {
+
+    if (target_address > fb.end) {
         raise_error(301, const_cast<char*>("draw_pixel"));
         return;
     }
-
-    unsigned char* target_address = (unsigned char*)((uint32_t)fb.address + (y * fb.pitch) + (x * fb.pixel_size));
 
     switch (fb.depth) {
         case 8:
@@ -217,7 +229,7 @@ void draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
         default:
             for (uint8_t bits = 0; bits <= fb.depth; bits += 8) {
                 *(uint8_t*) target_address = (uint8_t)((color >> bits) & 0xff);
-                target_address++;
+                target_address = (void*)((uintptr_t)target_address + 1);
             }
     }
 }
@@ -241,8 +253,11 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
             y1 = y0;
             y0 = tempY;
         }
+
+        void* target_address = get_pixel_address(x0, y0);
         for (y0 = y0; y0 <= y1; y0++ ) {
-            draw_pixel(x0, y0, color);
+            draw_pixel(target_address, color);
+            target_address = (void*)((uintptr_t)target_address + fb.pitch);
         }
         return;
     }
@@ -254,8 +269,11 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
             x1 = x0;
             x0 = tempX;
         }
+
+        void* target_address = get_pixel_address(x0, y0);
         for (x0 = x0; x0 <= x1; x0++ ) {
-            draw_pixel(x0, y0, color);
+            draw_pixel(target_address, color);
+            target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
         }
         return;
     }
@@ -380,20 +398,22 @@ void draw_rect(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, uint32_t 
 }
 
 /**
- * @brief Draws a filled in rectangle from (x_0, y_0) to (x_1, y_1)
+ * @brief Draws a filled in rectangle from (x0, y0) to (x1, y1)
  * 
- * @param x_0              X value of first point
- * @param y_0              Y value of first point
- * @param x_1              X value of second point
- * @param y_1              Y value of second point
+ * @param x0              X value of first point
+ * @param y0              Y value of first point
+ * @param x1              X value of second point
+ * @param y1              Y value of second point
  * @param color            Color of rectangle to draw
  */
-void draw_rect_fill(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, uint32_t color) {
+void draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, uint32_t color) {
 
     // Basic filling algorithm
-    for (y_0 = y_0; y_0 <= y_1; y_0++) {
-        for (unsigned int x_i = x_0; x_i <= x_1; x_i++) {
-            draw_pixel(x_i, y_0, color);
+    void* target_address = get_pixel_address(x0, y0);
+    for (y0 = y0; y0 <= y1; y0++) {
+        for (unsigned int xi = x0; xi <= x1; xi++) {
+            draw_pixel(target_address, color);
+            target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
         }
     }
 }
@@ -418,18 +438,23 @@ void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, uint32
     int char_width = glyph_width;
     int char_height = glyph_height;
 
+    // Calculate starting address and offset to next line
+    void* target_address = get_pixel_address(x, y);
+    size_t line_offset = fb.pitch - (char_width * fb.pixel_size);
+
    for ( int yIt = 0; yIt < char_height; yIt++) {
-       unsigned char char_data = glyph_bitmap[uchar][yIt];
 
-       for (int xIt = 0; xIt < char_width; xIt++) {
+       unsigned int char_data = glyph_bitmap[uchar][yIt];
+       for (int i = char_width; i > 0;) {
+            i--;
+            if (char_data & (1 << i))
+                draw_pixel(target_address, fg_color);
+            else
+                draw_pixel(target_address, bg_color);
 
-           if (char_data & 0x80UL) {
-               draw_pixel((x + xIt), (y + yIt), fg_color);
-           } else {
-               draw_pixel((x + xIt), (y + yIt), bg_color);
-           }
-           char_data = char_data << 1;
+            target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
        }
+       target_address = (void*)((uintptr_t)target_address + line_offset);
    } 
 }
 
@@ -502,18 +527,49 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t 
 }
 
 /**
- * @brief Blank the entire framebuffer with a certain color
+ * @brief Blank the entire framebuffer with a certain color. Not guaranteed
+ *        to perform correctly with non-greyscale colors in certain bit depths,
+ *        where draw_rect_fill over the entire screen would be a better choice.
  * 
  * @param color     Color to fill screen with
  */
 void fb_blank(uint32_t color) {
 
-    for (uint32_t y = 0; y <= fb.height; y++) {
-        for (uint32_t x = 0; x <= fb.width; x++) {
-            draw_pixel(x, y, color);
-        }
+    // Turn the color into a fill pattern 
+    unsigned int fill = 0;
+    for (size_t bits = 0; bits < sizeof(unsigned int); bits += fb.depth) {
+        fill |= (color << bits);
     }
 
+    // Fill the framebuffer portion of memory
+    fill_mem(fb.address, fb.size, fill);
+}
+
+/**
+ * @brief Draws a series of pixels in a bit format, where each bit is one pixel,
+ *        and a 1 = fg, and 0 = bg fill. This performs this in a manner more
+ *        efficient than individually filling each pixel.
+ * 
+ * @param x         X-value to start at
+ * @param y         Y-value to print at
+ * @param bmp       Bit string/map of data to fill pixels with
+ * @param length    Length of bmp / string to be printed
+ * @param fg        Foreground color / 1 in string
+ * @param bg        Background color / 0 in string
+ */
+void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg) {
+
+    // Get target address
+    void* target_address = get_pixel_address(x, y);
+
+    for (unsigned int index = 0; index < length; index++) {
+        if (bmp & (1 << index))
+            draw_pixel(target_address, fg);
+        else
+            draw_pixel(target_address, bg);
+        
+        target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
+    }
 }
 
 /* #endregion */

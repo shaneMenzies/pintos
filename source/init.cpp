@@ -14,7 +14,7 @@ extern "C" {
     extern uintptr_t kernel_end;
 }
 
-struct mb_info* mb_ptr;
+struct mb_info main_mb_info;
 
 /**
  * @brief Error function as result from the call of a purely
@@ -33,7 +33,9 @@ extern "C" {
  */
 void early_init() {
 
-    mb_ptr = (struct mb_info*) return_ebx();
+    // Load all the multiboot info into a known structure before 
+    // it can get clobbered up by other things
+    main_mb_info = *(mb_info*)return_ebx();
     return;
 }
 
@@ -47,20 +49,20 @@ void late_init() {
     disable_interrupts();
 
     // Initialize Memory
-    memory_init(mb_ptr);
+    memory_init(&main_mb_info);
 
     // Allocate the Reserved areas of Memory
     // Other sections of BIOS memory already reserved by GRUB or included in kernel area
     // Allocate the area which the kernel is loaded into
     talloc((void*)&kernel_start, (size_t)( (uintptr_t)&kernel_end - (uintptr_t)&kernel_start ) );
 
+    // Set up the framebuffer
+    framebuffer_init(&main_mb_info);
+
     // Set up boot terminal
-    boot_terminal = new terminal();
+    boot_terminal = new visual_terminal();
     active_terminal = boot_terminal;
     active_terminal->write(const_cast<char*>("PintOS Booting..."));
-
-    // Set up the framebuffer
-    framebuffer_init(mb_ptr);
     active_terminal->show();
 
     // Allocate error code section

@@ -9,7 +9,7 @@
 
 #include "error.h"
 
-terminal* error_terminal = 0;
+visual_terminal* error_terminal = 0;
 
 struct error_code_section* error_code_addr = 0;
 
@@ -18,7 +18,7 @@ struct error_code_section* error_code_addr = 0;
  * 
  * @param new_terminal  New error terminal
  */
-void set_error_terminal(terminal* new_terminal) {
+void set_error_terminal(visual_terminal* new_terminal) {
     error_terminal = new_terminal;
 }
 
@@ -30,7 +30,7 @@ void check_error_terminal() {
     
     // If no error terminal has been set, then make one
     if (error_terminal == 0) {
-        error_terminal = new terminal(0xffffff, 0, 0x0f);
+        error_terminal = new visual_terminal();
     }
 }
 
@@ -50,7 +50,7 @@ void raise_error(uint32_t error_code=0, char* caller=0) {
 
     // Print the error code to the terminal
     const char error_code_format[] = "\nError No. %u in %s:\n\t";
-    error_terminal->printf(const_cast<char*>(error_code_format), 
+    error_terminal->tprintf(const_cast<char*>(error_code_format), 
                            error_code, caller);
 
     // Print the associated info on this code

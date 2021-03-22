@@ -104,7 +104,7 @@ namespace interrupts {
         (void) frame;
 
         raise_error(003, const_cast<char*>("gpf_handler"));
-        active_terminal->printf(const_cast<char*>("Error Code: %x\n"), error_code);
+        active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
         active_terminal->show();
         
         disable_interrupts();
@@ -137,7 +137,7 @@ namespace interrupts {
         (void) frame;
 
         raise_error(11, const_cast<char*>("segment_fault"));
-        active_terminal->printf(const_cast<char*>("Error Code: %x\n"), error_code);
+        active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
         active_terminal->show();
         
         disable_interrupts();
@@ -154,7 +154,7 @@ namespace interrupts {
         (void) frame;
 
         raise_error(003, const_cast<char*>("page_fault"));
-        active_terminal->printf(const_cast<char*>("Error Code: %x\n"), error_code);
+        active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
         active_terminal->show();
         
         disable_interrupts();
@@ -187,7 +187,7 @@ namespace interrupts {
         char code_translation = keyboard::code_translation[scan_code];
 
         active_terminal->write(const_cast<char*>("\nIRQ 1 Called\n"));
-        active_terminal->printf(const_cast<char*>("Scan Code %x = %c"), scan_code, code_translation);
+        active_terminal->tprintf(const_cast<char*>("Scan Code %x = %c"), scan_code, code_translation);
         active_terminal->show();
         PIC_EOI(1);
     }

@@ -69,6 +69,39 @@ void framebuffer_init(struct mb_info* mb_addr) {
     }
 }
 
+v_fb::v_fb() {
+
+    // By default copy from the real framebuffer
+    info = fb;
+    
+    // Allocate space for new virtual framebuffer
+    info.address = malloc(info.size);
+    info.end = (void*)((uintptr_t)info.address + info.size);
+}
+
+v_fb::v_fb(uint32_t width, uint32_t height, uint8_t depth) {
+
+    // Copy most info from the real framebuffer
+    info = fb;
+
+    // Change certain properties to the given parameters
+    info.width = width;
+    info.height = height;
+    info.depth = depth;
+
+    info.pixel_size = depth / 8;
+    info.pitch = info.pixel_size * width;
+    info.size = (size_t)(info.pitch * info.height);
+
+    // Allocate space for new virtual framebuffer
+    info.address = malloc(info.size);
+    info.end = (void*)((uintptr_t)info.address + info.size);
+}
+
+v_fb::~v_fb() {
+
+}
+
 /* #region EGA FUNCTIONS */
 
 /**

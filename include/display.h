@@ -41,7 +41,50 @@ struct fb_info {
     bool ega_text;
 };
 
-extern struct fb_info fb;
+class v_fb {
+
+    private:
+        fb_info info;
+
+        inline void* get_target_address(uint32_t x, uint32_t y);
+
+        // Text-mode functions
+        void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character);
+        void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]);
+        void ega_blank(uint8_t ega_attributes);
+
+        // Pixel buffer functions
+        void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, 
+                     uint32_t bg_color); 
+        void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, 
+                     uint32_t bg_color);
+        void fb_blank(uint32_t color);
+        void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg);
+
+
+
+    public:
+
+        v_fb();
+        v_fb(uint32_t width, uint32_t height, uint8_t depth);
+        ~v_fb();
+
+        void show();
+        void show(uint32_t fg, uint32_t bg, uint8_t ega);
+            
+        // Printing characters and strings
+        void write_c(uint32_t x, uint32_t y, char target_char, uint32_t fg, uint32_t bg, uint32_t ega);
+        void write_s(uint32_t x, uint32_t y, char* string, uint32_t fg, uint32_t bg, uint32_t ega);
+
+        // Pixel buffer only functions
+        inline void draw_pixel(uint32_t x, uint32_t y, uint32_t color);
+        void draw_pixel(void* target_address, uint32_t color);
+        void draw_line(int x0, int y0, int x1, int y1, uint32_t color);
+        void draw_rect(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, 
+                       uint32_t color, uint16_t thickness, bool inside_border);
+        void draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, 
+                            uint32_t color);
+};
 
 typedef struct uint24_t {
     unsigned char byte[3];
@@ -49,36 +92,6 @@ typedef struct uint24_t {
 
 void framebuffer_init(struct mb_info* mb_addr);
 
-void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character);
-
 inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color);
-
-void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]);
-
-void ega_blank(uint8_t ega_attributes);
-
-inline void* get_pixel_address(uint32_t x, uint32_t y);
-
-inline void draw_pixel(uint32_t x, uint32_t y, uint32_t color);
-
-void draw_pixel(void* target_address, uint32_t color);
-
-void draw_line(int x0, int y0, int x1, int y1, uint32_t color);
-
-void draw_rect(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, 
-               uint32_t color, uint16_t thickness, bool inside_border);
-
-void draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, 
-                    uint32_t color);
-
-void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, 
-             uint32_t bg_color); 
-
-void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, 
-             uint32_t bg_color);
-
-void fb_blank(uint32_t color);
-
-void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg);
 
 #endif

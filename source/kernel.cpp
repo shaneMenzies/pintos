@@ -40,5 +40,12 @@ void kernel_main() {
 
     active_terminal->show();
 
+    v_fb test_fb;
+    test_fb.draw_rect_fill(100, 100, 200, 200, 0xffffffff);
+    uint32_t x = 4;
+    uint32_t y = 4;
+    test_fb.draw_s(x, y, "Test test. This is a test. Everything is okay.", 0xffffff, 0, 0x0f);
+    test_fb.show();
+
     while(1) {}
 }

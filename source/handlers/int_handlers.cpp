@@ -342,7 +342,7 @@ namespace interrupts {
         (void) frame;
 
         active_terminal->write(const_cast<char*>("\nInterrupt success!\n"));
-        active_terminal->show(0x002600, 0xffffff, 0x0f);
+        active_terminal->show();
     }
 
     /* #endregion*/

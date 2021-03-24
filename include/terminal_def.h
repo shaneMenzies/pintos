@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "display.h"
 
 enum {
     KB_BUF_SIZE = 1024,
@@ -38,14 +39,9 @@ class terminal {
 class visual_terminal : public terminal {
 
     private:
-        char* v_buffer_start;
-        char* v_buffer_next;
-        char* v_buffer_end;
-        size_t v_char_pitch;
-        unsigned int v_height;
-        unsigned int v_width;
-        unsigned int cur_y = 0;
-        unsigned int cur_x = 0;
+        class v_fb fb;
+        uint32_t x_pos = 0;
+        uint32_t y_pos = 0;
 
     public:
         uint32_t default_fg, default_bg;

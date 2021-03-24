@@ -56,7 +56,7 @@ void raise_error(uint32_t error_code=0, char* caller=0) {
     // Print the associated info on this code
     error_terminal->write(const_cast<char*>(get_code_info(error_code)));
 
-    error_terminal->show(0xff2b3d, 0x00, 0b00001100);
+    error_terminal->show();
 
     active_terminal = error_terminal;
 }

@@ -1,14 +1,8 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include "display.h"
+#include "fonts.h"
 #include "ibm_pc.h"
-
-#include "kernel.h"
-#include "memory.h"
-#include "multiboot.h"
-#include "error.h"
-#include "libk.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -43,38 +37,44 @@ struct fb_info {
 
 class v_fb {
 
-    private:
-        fb_info info;
+    friend class visual_terminal;
 
+    private:
+        Font* font = &ibm_pc_8x16;
         inline void* get_target_address(uint32_t x, uint32_t y);
 
         // Text-mode functions
         void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character);
-        void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]);
+        void ega_puts(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char* string);
         void ega_blank(uint8_t ega_attributes);
 
         // Pixel buffer functions
         void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, 
                      uint32_t bg_color); 
-        void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, 
+        void fb_puts(uint32_t& x, uint32_t& y, const char* string, uint32_t fg_color, 
                      uint32_t bg_color);
         void fb_blank(uint32_t color);
         void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg);
 
-
-
     public:
+        fb_info info;
+        size_t char_width;
+        size_t char_height;
+        size_t char_pitch;
 
         v_fb();
         v_fb(uint32_t width, uint32_t height, uint8_t depth);
         ~v_fb();
 
+        void set_font(Font* new_font);
+        Font* get_font();
+
         void show();
-        void show(uint32_t fg, uint32_t bg, uint8_t ega);
+        void blank(uint32_t color);
             
         // Printing characters and strings
-        void write_c(uint32_t x, uint32_t y, char target_char, uint32_t fg, uint32_t bg, uint32_t ega);
-        void write_s(uint32_t x, uint32_t y, char* string, uint32_t fg, uint32_t bg, uint32_t ega);
+        void draw_c(uint32_t x, uint32_t y, char target_char, uint32_t fg, uint32_t bg, uint32_t ega);
+        void draw_s(uint32_t& x, uint32_t& y, const char* string, uint32_t fg, uint32_t bg, uint32_t ega);
 
         // Pixel buffer only functions
         inline void draw_pixel(uint32_t x, uint32_t y, uint32_t color);

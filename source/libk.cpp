@@ -20,11 +20,23 @@
 void* memcpy(void* __restrict__ dest_ptr, const void* __restrict__ src_ptr, 
              size_t size) {
 
-    unsigned char* dest = (unsigned char*) dest_ptr;
-    const unsigned char* source = (unsigned char*) src_ptr;
+    unsigned int* dest_mword = (unsigned int*) dest_ptr;
+    unsigned int* src_mword = (unsigned int*) src_ptr;
 
-    for (size_t i = 0; i < size; i++) {
-        dest[i] = source[i];
+    // Fill out most of the data as quickly as possible
+    int i = 0;
+    for (; size >= sizeof(unsigned int); i++, size -= sizeof(unsigned int)) {
+        dest_mword[i] = src_mword[i];
+    }
+    dest_mword = &dest_mword[i];
+    src_mword = &src_mword[i];
+
+    // If it's not entirely filled out, fill the last bits
+    if (size > 0) {
+        unsigned int fill_data = *src_mword;
+        fill_data <<= (8*size);
+        *dest_mword &= ~fill_data;
+        *dest_mword |= fill_data;
     }
 
     return dest_ptr;
@@ -42,16 +54,15 @@ void fill_mem(void* dest_ptr, size_t size, unsigned int fill_data) {
     unsigned int* dest_mword = (unsigned int*) dest_ptr;
 
     // Fill out most of the data as quickly as possible
-    size_t i = 0;
-    for (; i < size; i++) {
+    int i = 0;
+    for (; size >= sizeof(unsigned int); i++, size -= sizeof(unsigned int)) {
         dest_mword[i] = fill_data;
     }
     dest_mword = &dest_mword[i];
 
     // If it's not entirely filled out, fill the last bits
-    i = (size - i) - 1;
-    if (i > 0) {
-        fill_data <<= (8*i);
+    if (size > 0) {
+        fill_data <<= (8*size);
         *dest_mword &= ~fill_data;
         *dest_mword |= fill_data;
     }

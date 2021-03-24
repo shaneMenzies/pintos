@@ -204,21 +204,9 @@ uint16_t stringify(char* target_buffer, int number, uint8_t base) {
 
 visual_terminal::visual_terminal(size_t text_size, uint32_t fg, uint32_t bg, 
     uint8_t ega, unsigned int target_lines) : terminal(text_size), 
-    default_fg(fg), default_bg(bg), default_ega(ega), target_lines(target_lines) {
+    fb(), default_fg(fg), default_bg(bg), default_ega(ega), 
+    target_lines(target_lines) {
 
-    // How many lines can be displayed
-    v_height = fb.height / glyph_height;
-
-    // Chars and bytes in each line
-    v_width = fb.width / glyph_width;
-    v_char_pitch = fb.pitch * glyph_height;
-
-    // Allocate space for the visual buffer
-    size_t v_size = (size_t)(v_height * v_width);
-    v_buffer_start = (char*)malloc(v_size);
-    *v_buffer_start = '\0';
-    v_buffer_next = v_buffer_start;
-    v_buffer_end = v_buffer_start + v_size;
 }
 
 void visual_terminal::tprintf(const char* format, ...) {
@@ -249,94 +237,48 @@ void visual_terminal::write(const char* string) {
 
         target_char = string[string_index];
 
+        // Write into the text buffer
         *next = target_char;
-        *v_buffer_next = target_char;
 
         if (target_char == '\0') {
             break;
-        } else if (target_char == '\n') {
-            cur_y++;
-            cur_x = 0;
-        } else if (cur_x == v_width) {
-            cur_y++;
-            cur_x = 0;
-        } else {    
-            cur_x++;
-        }
-        
+        } 
+
+        // Increase indexes
         next++;
-        v_buffer_next++;
         string_index++;
 
         // If reached the end of the buffer, loop back
         if (next > end) {
             next = start;
         }
-        if (v_buffer_next > v_buffer_end) {
-            v_buffer_next = v_buffer_start;
-            cur_y = 0;
-            cur_x = 0;
-        }
     }
 
+    // Print the string to the framebuffer
+    fb.draw_s(x_pos, y_pos, string, default_fg, default_bg, default_ega);
+
     // Determine what shift needs to be made to the visual buffer
-    if (cur_y > target_lines) {
-        // How many lines to shift?
-        int line_shift = (cur_y - target_lines) + 4;
+    if ((y_pos / fb.char_height) > target_lines) {
+        // Calculate how much to cut out
+        unsigned int lines = ((y_pos / fb.char_height) - target_lines) + 4;
+        size_t line_shift = lines * fb.char_pitch;
 
-        // Determine ddress to cut from start of buffer
-        char* end_cut = v_buffer_start;
-        int lines = 0;
-        unsigned int counter = 0;
-        while (1) {
-
-            if (*end_cut == '\n') {
-                lines++;
-                counter = 0;
-            }
-
-            if (counter == v_width) {
-                lines++;
-                counter = 0;
-            }
-
-            end_cut++;
-            counter++;
-
-            if (lines == line_shift)
-                break;
-        }
-
-        // Cut that space from the buffer
-        memcpy(v_buffer_start, end_cut, (size_t)((uintptr_t)v_buffer_end - (uintptr_t)end_cut));
-        cur_y -= line_shift;
-        v_buffer_next -= (size_t)((uintptr_t)end_cut - (uintptr_t)v_buffer_start);
-        fb_blank(default_bg);
+        // Cut that many lines from the buffer
+        void* end_cut = (void*)((uintptr_t)fb.info.address + line_shift);
+        memcpy(fb.info.address, end_cut, (fb.info.size - line_shift - 1));
+        y_pos -= (lines * fb.char_height);
     }
 }
 
 void visual_terminal::clear() {
-    fb_blank(default_bg);
-    v_buffer_next = v_buffer_start;
-    *v_buffer_next = '\0';
-    cur_y = 0;
-    cur_x = 0;
+    fb.blank(default_bg);
+    x_pos = 0;
+    y_pos = 0;
 }
 
 void visual_terminal::show() {
-    if (fb.direct_color)
-        fb_puts(0, 0, v_buffer_start, default_fg, default_bg);
-    else
-        ega_puts(0, 0, default_ega, v_buffer_start);
+    fb.show();
 }
-
-void visual_terminal::show(uint32_t fg_color, uint32_t bg_color, uint8_t ega_attributes) {
-    if (fb.direct_color)
-        fb_puts(0, 0, v_buffer_start, fg_color, bg_color);
-    else
-        ega_puts(0, 0, ega_attributes, v_buffer_start);
-}
-
 
 /* #endregion */
 

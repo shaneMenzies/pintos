@@ -10,6 +10,12 @@
 
 #include "display.h"
 
+#include "memory.h"
+#include "multiboot.h"
+#include "error.h"
+#include "libk.h"
+#include "kernel.h"
+
 bool fb_initialized = false;
 
 struct fb_info fb;
@@ -69,6 +75,19 @@ void framebuffer_init(struct mb_info* mb_addr) {
     }
 }
 
+/**
+ * @brief Generates an EGA/VGA attribute byte from the inputted 4-bit IRGB
+ *        foreground color, 3-bit RGB background color, and bool value to
+ *        make the character blink
+ * 
+ * @param fg_color      4-bit color-code, IRGB (intensity, red, green, blue)
+ * @param bg_color      4-bit color-code for background color
+ * @return uint8_t      EGA/VGA Attribute value
+ */
+inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color) {
+    return (uint8_t)(((bg_color & 0b1111) << 4) | (fg_color & 0b1111));
+}
+
 v_fb::v_fb() {
 
     // By default copy from the real framebuffer
@@ -77,6 +96,18 @@ v_fb::v_fb() {
     // Allocate space for new virtual framebuffer
     info.address = malloc(info.size);
     info.end = (void*)((uintptr_t)info.address + info.size);
+
+    // Set up font info
+    if (info.direct_color) {
+        char_height = font->char_height;
+        char_width = font->char_width;
+    } else {
+        char_height = 1;
+        char_width = 1;
+    }
+    char_pitch = char_height * info.pitch;
+
+    blank(0);
 }
 
 v_fb::v_fb(uint32_t width, uint32_t height, uint8_t depth) {
@@ -96,10 +127,43 @@ v_fb::v_fb(uint32_t width, uint32_t height, uint8_t depth) {
     // Allocate space for new virtual framebuffer
     info.address = malloc(info.size);
     info.end = (void*)((uintptr_t)info.address + info.size);
+
+    // Set up font info
+    if (info.direct_color) {
+        char_height = font->char_height;
+        char_width = font->char_width;
+    } else {
+        char_height = 1;
+        char_width = 1;
+    }
+    char_pitch = char_height * info.pitch;
+
+    blank(0);
 }
 
 v_fb::~v_fb() {
 
+    // Free the virtual framebuffer memory
+    free(info.address);
+}
+
+void v_fb::set_font(Font* new_font) {
+
+    font = new_font;
+
+    // Set up font info
+    if (info.direct_color) {
+        char_height = font->char_height;
+        char_width = font->char_width;
+    } else {
+        char_height = 1;
+        char_width = 1;
+    }
+    char_pitch = char_height * info.pitch;
+}
+
+Font* v_fb::get_font() {
+    return font;
 }
 
 /* #region EGA FUNCTIONS */
@@ -113,10 +177,10 @@ v_fb::~v_fb() {
  * @param ega_attributes    EGA/VGA Attributes
  * @param character         Character to be printed
  */
-void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character) {
-    if(fb_initialized && fb.ega_text) {
+void v_fb::ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character) {
+    if(fb_initialized && info.ega_text) {
 
-        uint16_t* target_address = (uint16_t*)(((char*)fb.address) + (y * fb.pitch) + (x * fb.pixel_size));
+        uint16_t* target_address = (uint16_t*)(((char*)info.address) + (y * info.pitch) + (x * info.pixel_size));
 
         uint16_t char_data = ((uint16_t)ega_attributes << 8) | character;
 
@@ -125,18 +189,7 @@ void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character) {
     return;
 }
 
-/**
- * @brief Generates an EGA/VGA attribute byte from the inputted 4-bit IRGB
- *        foreground color, 3-bit RGB background color, and bool value to
- *        make the character blink
- * 
- * @param fg_color      4-bit color-code, IRGB (intensity, red, green, blue)
- * @param bg_color      4-bit color-code for background color
- * @return uint8_t      EGA/VGA Attribute value
- */
-inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color) {
-    return (uint8_t)(((bg_color & 0b1111) << 4) | (fg_color & 0b1111));
-}
+
 
 /**
  * @brief Write the string at the address, to the screen
@@ -146,7 +199,7 @@ inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color) {
  * @param ega_attributes    EGA/VGA Attributes for the printed string
  * @param string_addr       Address of the null-terminated string to write
  */
-void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]) {
+void v_fb::ega_puts(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char* string) {
     uint32_t index = 0;
     uint32_t x_cnt = x;
     uint32_t y_cnt = y;
@@ -156,6 +209,8 @@ void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]) {
 
         // Identify special characters
         if (target_char == '\0') {
+            x = x_cnt;
+            y = y_cnt;
             return;
         } else if (target_char == '\n') {
             y_cnt++;
@@ -164,7 +219,7 @@ void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]) {
             x_cnt += 4;
         } else if (target_char == '\b') {
             if (x_cnt < 1) {
-                x_cnt = fb.width;
+                x_cnt = info.width;
                 y--;
             }
             x_cnt--;
@@ -174,13 +229,13 @@ void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]) {
         }
         
         // Wrap around if it's hit the edge of the screen
-        if (x_cnt > fb.width) {
+        if (x_cnt > info.width) {
             x_cnt = x;
             y_cnt++;
         }
 
         // Wrap around if it's hit the bottom of the screen
-        if (y_cnt > fb.height) {
+        if (y_cnt > info.height) {
             y_cnt = y;
             ega_blank(ega_attributes);
         }
@@ -194,9 +249,9 @@ void ega_puts(uint32_t x, uint32_t y, uint8_t ega_attributes, char string[]) {
  * 
  * @param ega_attributes    EGA/VGA Attributes to blank the screen with
  */
-void ega_blank(uint8_t ega_attributes) {
-    for (uint32_t y = 0; y <= fb.height; y++) {
-        for (uint32_t x = 0; x <= fb.width; x++) {
+void v_fb::ega_blank(uint8_t ega_attributes) {
+    for (uint32_t y = 0; y <= info.height; y++) {
+        for (uint32_t x = 0; x <= info.width; x++) {
             ega_putc(x, y, ega_attributes, ' ');
         }
     }
@@ -206,14 +261,14 @@ void ega_blank(uint8_t ega_attributes) {
 
 /* #region FRAMEBUFFER FUNCTIONS */
 
-inline void* get_pixel_address(uint32_t x, uint32_t y) {
+inline void* v_fb::get_target_address(uint32_t x, uint32_t y) {
 
-    if (x > fb.width || y > fb.height) {
+    if (x > info.width || y > info.height) {
         raise_error(301, const_cast<char*>("draw_pixel"));
         return 0;
     }
 
-    return (void*)((uint32_t)fb.address + (y * fb.pitch) + (x * fb.pixel_size));
+    return (void*)((uint32_t)info.address + (y * info.pitch) + (x * info.pixel_size));
 }
 
 /**
@@ -223,9 +278,9 @@ inline void* get_pixel_address(uint32_t x, uint32_t y) {
  * @param y         Y position
  * @param color     Color of pixel to be drawn
  */
-inline void draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
+inline void v_fb::draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
 
-    draw_pixel(get_pixel_address(x, y), color);
+    draw_pixel(get_target_address(x, y), color);
 }
 
 /**
@@ -234,14 +289,14 @@ inline void draw_pixel(uint32_t x, uint32_t y, uint32_t color) {
  * @param target_address    Target address to draw the pixel
  * @param color             Color of pixel to be drawn
  */
-void draw_pixel(void* target_address, uint32_t color) {
+void v_fb::draw_pixel(void* target_address, uint32_t color) {
 
-    if (target_address > fb.end) {
+    if (target_address > info.end) {
         raise_error(301, const_cast<char*>("draw_pixel"));
         return;
     }
 
-    switch (fb.depth) {
+    switch (info.depth) {
         case 8:
             *(uint8_t*) target_address = (uint8_t)(color & 0xff);
             break;
@@ -260,7 +315,7 @@ void draw_pixel(void* target_address, uint32_t color) {
             break;
 
         default:
-            for (uint8_t bits = 0; bits <= fb.depth; bits += 8) {
+            for (uint8_t bits = 0; bits <= info.depth; bits += 8) {
                 *(uint8_t*) target_address = (uint8_t)((color >> bits) & 0xff);
                 target_address = (void*)((uintptr_t)target_address + 1);
             }
@@ -277,7 +332,7 @@ void draw_pixel(void* target_address, uint32_t color) {
  * @param y1    Ending point's y-value
  * @param color Color for the drawn line
  */
-void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
+void v_fb::draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
 
     // Specific handler for vertical lines
     if ( x0 == x1) {
@@ -287,10 +342,10 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
             y0 = tempY;
         }
 
-        void* target_address = get_pixel_address(x0, y0);
+        void* target_address = get_target_address(x0, y0);
         for (y0 = y0; y0 <= y1; y0++ ) {
             draw_pixel(target_address, color);
-            target_address = (void*)((uintptr_t)target_address + fb.pitch);
+            target_address = (void*)((uintptr_t)target_address + info.pitch);
         }
         return;
     }
@@ -303,10 +358,10 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
             x0 = tempX;
         }
 
-        void* target_address = get_pixel_address(x0, y0);
+        void* target_address = get_target_address(x0, y0);
         for (x0 = x0; x0 <= x1; x0++ ) {
             draw_pixel(target_address, color);
-            target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
+            target_address = (void*)((uintptr_t)target_address + info.pixel_size);
         }
         return;
     }
@@ -375,7 +430,7 @@ void draw_line(int x0, int y0, int x1, int y1, uint32_t color) {
  * @param inside_border   Flag to set border to be on the inside, otherwise 
  *                        it will be on the outside
  */
-void draw_rect(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, uint32_t color, uint16_t thickness, bool inside_border) {
+void v_fb::draw_rect(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, uint32_t color, uint16_t thickness, bool inside_border) {
 
     if (thickness == 0) {
         draw_line(x_0, y_0, x_1, y_0, color);
@@ -439,15 +494,18 @@ void draw_rect(uint32_t x_0, uint32_t y_0, uint32_t x_1, uint32_t y_1, uint32_t 
  * @param y1              Y value of second point
  * @param color            Color of rectangle to draw
  */
-void draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, uint32_t color) {
+void v_fb::draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, uint32_t color) {
 
     // Basic filling algorithm
-    void* target_address = get_pixel_address(x0, y0);
-    for (y0 = y0; y0 <= y1; y0++) {
+    void* target_address;
+    void* next_row = get_target_address(x0, y0);
+    for (; y0 <= y1; y0++) {
+        target_address = next_row;
         for (unsigned int xi = x0; xi <= x1; xi++) {
             draw_pixel(target_address, color);
-            target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
+            target_address = (void*)((uintptr_t)target_address + info.pixel_size);
         }
+        next_row = (void*)((uintptr_t)next_row + info.pitch);
     }
 }
 
@@ -460,39 +518,41 @@ void draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, uint32_t
  * @param fg_color      Foreground character color
  * @param bg_color      Background character color
  */
-void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, uint32_t bg_color) {
+void v_fb::fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, uint32_t bg_color) {
 
-    if (target_char > glyph_char_count) {
+    if (target_char > font->char_count) {
         target_char = 0;
     }
 
-    unsigned char uchar = (unsigned char) target_char;
+    int char_width = font->char_width;
+    int char_height = font->char_height;
 
-    int char_width = glyph_width;
-    int char_height = glyph_height;
+    // Get data for this char
+    const unsigned int* char_data = font->get_char(target_char);
 
     // Calculate starting address and offset to next line
-    void* target_address = get_pixel_address(x, y);
-    size_t line_offset = fb.pitch - (char_width * fb.pixel_size);
+    void* target_address = get_target_address(x, y);
+    size_t line_offset = info.pitch - (char_width * info.pixel_size);
 
    for ( int yIt = 0; yIt < char_height; yIt++) {
 
-       unsigned int char_data = glyph_bitmap[uchar][yIt];
+       unsigned int line_data = char_data[yIt];
        for (int i = char_width; i > 0;) {
             i--;
-            if (char_data & (1 << i))
+            if (line_data & (1 << i))
                 draw_pixel(target_address, fg_color);
             else
                 draw_pixel(target_address, bg_color);
 
-            target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
+            target_address = (void*)((uintptr_t)target_address + info.pixel_size);
        }
        target_address = (void*)((uintptr_t)target_address + line_offset);
    } 
 }
 
 /**
- * @brief Draws a null-terminated string to the framebuffer
+ * @brief Draws a null-terminated string to the framebuffer, and leaves 
+ *        the position of the next character in x and y
  * 
  * @param x             X-value for top-left pixel of first char in the string
  * @param y             Y value for top-left pixel of first char in the string
@@ -500,10 +560,10 @@ void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, uint32
  * @param fg_color      Foreground character color
  * @param bg_color      Background character color
  */
-void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t bg_color) {
+void v_fb::fb_puts(uint32_t& x, uint32_t& y, const char* string, uint32_t fg_color, uint32_t bg_color) {
 
-    uint8_t char_width = glyph_width;
-    uint8_t char_height = glyph_height;
+    uint8_t char_width = font->char_width;
+    uint8_t char_height = font->char_height;
 
     uint32_t x_i = x;
     uint32_t y_i = y;
@@ -518,10 +578,12 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t 
         switch (target_char) {
 
             case '\0':
+                x = x_i;
+                y = y_i;
                 return;
 
             case '\n':
-                x_i = x;
+                x_i = 0;
                 y_i += char_height;
                 break;
 
@@ -531,7 +593,7 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t 
 
             case '\b':
                 if (x_i == 0) {
-                    x_i = fb.width;
+                    x_i = info.width;
                     y_i -= char_height;
                 }
                 x_i -= char_width;
@@ -543,14 +605,14 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t 
         }
 
         // If reached edge of screen, wrap around
-        if (x_i >= fb.width) {
-            x_i = x;
+        if (x_i >= info.width) {
+            x_i = 0;
             y_i += char_height;
         }
 
         // If reached end of screen, wrap around vertically
-        if (y_i >= fb.height) {
-            y_i = y;
+        if (y_i >= info.height) {
+            y_i = 0;
             fb_blank(bg_color);
         }
 
@@ -566,16 +628,16 @@ void fb_puts(uint32_t x, uint32_t y, char string[], uint32_t fg_color, uint32_t 
  * 
  * @param color     Color to fill screen with
  */
-void fb_blank(uint32_t color) {
+void v_fb::fb_blank(uint32_t color) {
 
     // Turn the color into a fill pattern 
     unsigned int fill = 0;
-    for (size_t bits = 0; bits < sizeof(unsigned int); bits += fb.depth) {
+    for (size_t bits = 0; bits < sizeof(unsigned int); bits += info.depth) {
         fill |= (color << bits);
     }
 
     // Fill the framebuffer portion of memory
-    fill_mem(fb.address, fb.size, fill);
+    fill_mem(info.address, info.size, fill);
 }
 
 /**
@@ -590,10 +652,10 @@ void fb_blank(uint32_t color) {
  * @param fg        Foreground color / 1 in string
  * @param bg        Background color / 0 in string
  */
-void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg) {
+void v_fb::fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg) {
 
     // Get target address
-    void* target_address = get_pixel_address(x, y);
+    void* target_address = get_target_address(x, y);
 
     for (unsigned int index = 0; index < length; index++) {
         if (bmp & (1 << index))
@@ -601,9 +663,35 @@ void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uin
         else
             draw_pixel(target_address, bg);
         
-        target_address = (void*)((uintptr_t)target_address + fb.pixel_size);
+        target_address = (void*)((uintptr_t)target_address + info.pixel_size);
     }
 }
 
 /* #endregion */
+
+void v_fb::show() {
+    memcpy(fb.address, info.address, info.size);
+}
+
+void v_fb::blank(uint32_t color) {
+    fb_blank(color);
+}
+
+void v_fb::draw_c(uint32_t x, uint32_t y, char target_char, 
+    uint32_t fg, uint32_t bg, uint32_t ega) {
+
+    if (info.direct_color)
+        fb_putc(x, y, target_char, fg, bg);
+    else
+        ega_putc(x, y, ega, target_char);
+}
+
+void v_fb::draw_s(uint32_t& x, uint32_t& y, const char* string, 
+    uint32_t fg, uint32_t bg, uint32_t ega) {
+
+    if (info.direct_color)
+        fb_puts(x, y, string, fg, bg);
+    else
+        ega_puts(x, y, ega, string);
+}
 

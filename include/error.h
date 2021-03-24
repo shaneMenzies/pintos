@@ -12,7 +12,7 @@ struct error_code_section {
 
 extern struct error_code_section* error_code_addr;
 
-void set_error_terminal(terminal* new_terminal);
+void set_error_terminal(visual_terminal* new_terminal);
 
 void check_error_terminal();
 

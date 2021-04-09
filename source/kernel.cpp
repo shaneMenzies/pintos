@@ -13,6 +13,7 @@
 #include "memory.h"
 #include "init.h"
 #include "error.h"
+#include "timer.h"
 
 #include "display.h"
 #include "multiboot.h"
@@ -30,6 +31,9 @@ void call_kernel() {
     extern void test_soft_int();
 }
 
+v_fb* test_fb;
+v_fb* cursor;
+
 void kernel_main() {
 
     active_terminal->clear();
@@ -38,14 +42,20 @@ void kernel_main() {
 
     active_terminal->tprintf(const_cast<char*>("Hi there.\n%s"), test_string);
 
-    active_terminal->show();
+    if (float_support) {
+        active_terminal->tprintf("Floating Point Instruction Support Enabled, with Status: %x\n", fpu_status);
+    } else {
+        active_terminal->write_s("Floating Point Instructions not supported\n");
+    }
 
-    v_fb test_fb;
-    test_fb.draw_rect_fill(100, 100, 200, 200, 0xffffffff);
+    active_terminal->update();
+
+    test_fb = new v_fb;
+    test_fb->draw_rect_fill(100, 100, 200, 200, 0xffffffff);
     uint32_t x = 4;
     uint32_t y = 4;
-    test_fb.draw_s(x, y, "Test test. This is a test. Everything is okay.", 0xffffff, 0, 0x0f);
-    test_fb.show();
+    test_fb->draw_s(x, y, "Test test. This is a test. Everything is okay.", 0xffffff, 0, 0x0f);
+    test_fb->show();
 
     while(1) {}
 }

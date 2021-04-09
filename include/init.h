@@ -8,13 +8,17 @@
 #include "multiboot.h"
 #include "display.h"
 #include "gdt.h"
+#include "timer.h"
 
 extern "C" {
 uint32_t return_ebx();
+bool fpu_init();
+
+extern uint16_t fpu_status;
 }
 
-void __cxa_pure_virtual();
+extern bool float_support;
 
-void kernel_init();
+void __cxa_pure_virtual();
 
 #endif

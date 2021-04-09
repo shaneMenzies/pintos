@@ -44,12 +44,12 @@ class v_fb {
         inline void* get_target_address(uint32_t x, uint32_t y);
 
         // Text-mode functions
-        void ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character);
+        void ega_putc(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char character);
         void ega_puts(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char* string);
         void ega_blank(uint8_t ega_attributes);
 
         // Pixel buffer functions
-        void fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, 
+        void fb_putc(uint32_t& x, uint32_t& y, const char target_char, uint32_t fg_color, 
                      uint32_t bg_color); 
         void fb_puts(uint32_t& x, uint32_t& y, const char* string, uint32_t fg_color, 
                      uint32_t bg_color);
@@ -63,17 +63,17 @@ class v_fb {
         size_t char_pitch;
 
         v_fb();
-        v_fb(uint32_t width, uint32_t height, uint8_t depth);
+        v_fb(uint32_t width, uint32_t height);
         ~v_fb();
 
         void set_font(Font* new_font);
         Font* get_font();
 
-        void show();
+        void show(uint32_t x = 0, uint32_t y = 0);
         void blank(uint32_t color);
             
         // Printing characters and strings
-        void draw_c(uint32_t x, uint32_t y, char target_char, uint32_t fg, uint32_t bg, uint32_t ega);
+        void draw_c(uint32_t& x, uint32_t& y, const char target_char, uint32_t fg, uint32_t bg, uint32_t ega);
         void draw_s(uint32_t& x, uint32_t& y, const char* string, uint32_t fg, uint32_t bg, uint32_t ega);
 
         // Pixel buffer only functions

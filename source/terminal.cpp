@@ -46,31 +46,18 @@ void terminal::kb_clear() {
     }
 }
 
-void terminal::kb_append_c(char new_char) {
-    keyboard[kb_index++] = new_char;
-    keyboard[kb_index] = '\0';
+void terminal::write_c(const char character) {
 
-    if (kb_index >= KB_BUF_SIZE)
-        kb_index = 0;
+    *next = character;
+
+    next++;
+    if (next > end)
+            next = start;
+
+    *next = '\0';
 }
 
-void terminal::kb_append_s(const char* string) {
-    
-    unsigned int string_index = 0;
-
-    while (1) {
-        char target_char = string[string_index];
-        keyboard[kb_index++] = target_char;
-
-        if (kb_index >= KB_BUF_SIZE)
-            kb_index = 0;
-        
-        if (target_char == '\0')
-            break;
-    }
-}
-
-void terminal::write(const char* string) {
+void terminal::write_s(const char* string) {
     unsigned int string_index = 0;
     char target_char;
 
@@ -106,7 +93,7 @@ void terminal::tprintf(const char* format, ...) {
     vprintf(build, format, args);
     va_end(args);
 
-    this->write(build);
+    this->write_s(build);
 
     // Deallocate the previously allocated memory
     free((void*)build);
@@ -203,10 +190,16 @@ uint16_t stringify(char* target_buffer, int number, uint8_t base) {
 /* #region visual_terminal */
 
 visual_terminal::visual_terminal(size_t text_size, uint32_t fg, uint32_t bg, 
-    uint8_t ega, unsigned int target_lines) : terminal(text_size), 
-    fb(), default_fg(fg), default_bg(bg), default_ega(ega), 
-    target_lines(target_lines) {
+    uint8_t ega, double target_fill) : terminal(text_size), 
+    fb(), cursor(fb.char_width, fb.char_height), 
+    default_fg(fg), default_bg(bg), default_ega(ega), 
+    target_fill(target_fill) {
 
+    target_height = (target_fill * fb.info.height);
+    target_height -= (target_height % fb.char_height);
+
+    scroll_shift = fb.info.height - target_height;
+    scroll_shift -= (scroll_shift % fb.char_height);
 }
 
 void visual_terminal::tprintf(const char* format, ...) {
@@ -221,13 +214,40 @@ void visual_terminal::tprintf(const char* format, ...) {
     vprintf(build, format, args);
     va_end(args);
 
-    this->write(build);
+    this->write_s(build);
 
     // Deallocate the previously allocated memory
     free((void*)build);
 }
 
-void visual_terminal::write(const char* string) {
+void visual_terminal::write_c(const char character) {
+
+    *next = character;
+
+    next++;
+    if (next > end)
+            next = start;
+
+    *next = '\0';
+
+    // Print the string to the framebuffer
+    fb.draw_c(x_pos, y_pos, character, default_fg, default_bg, default_ega);
+
+    // Determine what shift needs to be made to the visual buffer
+    if (y_pos > target_height) {
+        // Calculate how much to cut out
+        unsigned int lines = (y_pos - target_height) + scroll_shift;
+        size_t line_shift = lines * fb.info.pitch;
+
+        // Cut that many lines from the buffer
+        void* end_cut = (void*)((uintptr_t)fb.info.address + line_shift);
+        memcpy(fb.info.address, end_cut, (fb.info.size - line_shift - 1));
+        fill_mem((void*)((uintptr_t)fb.info.end - line_shift), line_shift, default_bg);
+        y_pos -= lines;
+    }
+}
+
+void visual_terminal::write_s(const char* string) {
 
     unsigned int string_index = 0;
     char target_char;
@@ -258,16 +278,32 @@ void visual_terminal::write(const char* string) {
     fb.draw_s(x_pos, y_pos, string, default_fg, default_bg, default_ega);
 
     // Determine what shift needs to be made to the visual buffer
-    if ((y_pos / fb.char_height) > target_lines) {
+    if (y_pos > target_height) {
         // Calculate how much to cut out
-        unsigned int lines = ((y_pos / fb.char_height) - target_lines) + 4;
-        size_t line_shift = lines * fb.char_pitch;
+        unsigned int lines = (y_pos - target_height) + scroll_shift;
+        size_t line_shift = lines * fb.info.pitch;
 
         // Cut that many lines from the buffer
         void* end_cut = (void*)((uintptr_t)fb.info.address + line_shift);
         memcpy(fb.info.address, end_cut, (fb.info.size - line_shift - 1));
-        y_pos -= (lines * fb.char_height);
+        fill_mem((void*)((uintptr_t)fb.info.end - line_shift), line_shift, default_bg);
+        y_pos -= lines;
     }
+}
+
+void visual_terminal::draw_cursor() {
+
+    if (!cursor_active) return;
+
+    static uint32_t color = 0x0;
+    color = ~color;
+
+    cursor.blank(color);
+    cursor.show(x_pos, y_pos);
+}
+
+void draw_active_cursor() {
+    active_terminal->draw_cursor();
 }
 
 void visual_terminal::clear() {
@@ -276,7 +312,7 @@ void visual_terminal::clear() {
     y_pos = 0;
 }
 
-void visual_terminal::show() {
+void visual_terminal::update() {
     fb.show();
 }
 

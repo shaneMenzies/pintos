@@ -73,7 +73,7 @@ namespace interrupts {
         interrupts::set_interrupt(19, TRAP_GATE_32, interrupts::flt_x87);
 
         // Hardware IRQs
-        //interrupts::set_interrupt((OFFSET_1 + 0), INT_GATE_32, interrupts::irq_0);
+        interrupts::set_interrupt((OFFSET_1 + 0), INT_GATE_32, interrupts::irq_0);
         interrupts::set_interrupt((OFFSET_1 + 1), INT_GATE_32, interrupts::irq_1);
         interrupts::set_interrupt((OFFSET_1 + 2), INT_GATE_32, interrupts::irq_2);
         interrupts::set_interrupt((OFFSET_1 + 3), INT_GATE_32, interrupts::irq_3);

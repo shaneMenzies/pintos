@@ -25,6 +25,18 @@ static const unsigned char bit_reverse_table[] =
   0x0F, 0x8F, 0x4F, 0xCF, 0x2F, 0xAF, 0x6F, 0xEF, 0x1F, 0x9F, 0x5F, 0xDF, 0x3F, 0xBF, 0x7F, 0xFF
 };
 
+inline bool is_alphabet(char character) {
+    return ((character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z'));
+}
+
+inline bool is_numeric(char character) {
+    return (character >= '0' && character <= '9');
+}
+
+inline bool is_alphanumeric(char character) {
+    return (is_alphabet(character) || is_numeric(character));
+}
+
 void* memcpy(void* dest_ptr, const void* src_ptr, size_t size);
 
 void fill_mem(void* dest_ptr, size_t size, unsigned int fill_data);

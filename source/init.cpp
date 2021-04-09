@@ -15,6 +15,7 @@ extern "C" {
 }
 
 struct mb_info main_mb_info;
+bool float_support = false;
 
 /**
  * @brief Error function as result from the call of a purely
@@ -48,22 +49,27 @@ void late_init() {
     // Make sure interrupts are disabled
     disable_interrupts();
 
+    // Initialize Floating Point support
+    float_support = fpu_init();
+
     // Initialize Memory
     memory_init(&main_mb_info);
-
-    // Allocate the Reserved areas of Memory
-    // Other sections of BIOS memory already reserved by GRUB or included in kernel area
-    // Allocate the area which the kernel is loaded into
     talloc((void*)&kernel_start, (size_t)( (uintptr_t)&kernel_end - (uintptr_t)&kernel_start ) );
+
+    // Start system timer
+    timer::sys_timer_init(32);
 
     // Set up the framebuffer
     framebuffer_init(&main_mb_info);
 
+    // Add cursor drawing
+    timer::sys_int_timer->push_task(16, draw_active_cursor);
+
     // Set up boot terminal
     boot_terminal = new visual_terminal();
     active_terminal = boot_terminal;
-    active_terminal->write(const_cast<char*>("PintOS Booting..."));
-    active_terminal->show();
+    active_terminal->write_s(const_cast<char*>("PintOS Booting..."));
+    active_terminal->update();
 
     // Allocate error code section
     error_code_addr = (error_code_section*)malloc(sizeof(error_code_section));

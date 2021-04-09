@@ -7,7 +7,8 @@
 #include "x86_tables.h"
 #include "io.h"
 #include "terminal.h"
-#include "kb_codes.h"
+#include "keyboard.h"
+#include "timer.h"
 
 extern "C" {
 extern void disable_interrupts();
@@ -16,39 +17,6 @@ extern void enable_interrupts();
 
 extern void set_idt(void* idt_base, uint16_t idt_length);
 }
-
-enum : uint8_t{
-    PIC_1 = 0x20,
-    PIC_1_CMD = (PIC_1),
-    PIC_1_DATA = (PIC_1 + 1),
-
-    PIC_2 = 0xa0,
-    PIC_2_CMD = (PIC_2),
-    PIC_2_DATA = (PIC_2 + 1),
-
-    OFFSET_1 = 0x20,
-    OFFSET_2 = (OFFSET_1 + 8),
-    OFFSET_END = (OFFSET_2 + 8),
-
-    CODE_INIT = 0x11,
-    CODE_HAS_SLAVE = 0x4,
-    CODE_IS_SLAVE = 0x2,
-
-    CODE_8086 = 0x1,
-
-    CODE_EOI = 0x20,
-
-    KB_DATA = 0x60,
-    KB_CMD = 0x64,
-
-    INT_GATE_32 = 0x0E,
-    INT_GATE_16 = 0x06,
-
-    TRAP_GATE_32 = 0xf,
-    TRAP_GATE_16 = 0x7,
-
-    TASK_GATE = 0x05,
-};
 
 struct interrupt_frame {
     void* return_instruction;
@@ -91,8 +59,6 @@ namespace interrupts {
     
 
     // Hardware Interrupts
-    __attribute__((interrupt)) void keyboard_handler(interrupt_frame* frame);
-
     __attribute__((interrupt)) void irq_0(interrupt_frame* frame);
     __attribute__((interrupt)) void irq_1(interrupt_frame* frame);
     __attribute__((interrupt)) void irq_2(interrupt_frame* frame);

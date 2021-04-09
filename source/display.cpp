@@ -110,7 +110,7 @@ v_fb::v_fb() {
     blank(0);
 }
 
-v_fb::v_fb(uint32_t width, uint32_t height, uint8_t depth) {
+v_fb::v_fb(uint32_t width, uint32_t height) {
 
     // Copy most info from the real framebuffer
     info = fb;
@@ -118,9 +118,7 @@ v_fb::v_fb(uint32_t width, uint32_t height, uint8_t depth) {
     // Change certain properties to the given parameters
     info.width = width;
     info.height = height;
-    info.depth = depth;
 
-    info.pixel_size = depth / 8;
     info.pitch = info.pixel_size * width;
     info.size = (size_t)(info.pitch * info.height);
 
@@ -177,7 +175,7 @@ Font* v_fb::get_font() {
  * @param ega_attributes    EGA/VGA Attributes
  * @param character         Character to be printed
  */
-void v_fb::ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char character) {
+void v_fb::ega_putc(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char character) {
     if(fb_initialized && info.ega_text) {
 
         uint16_t* target_address = (uint16_t*)(((char*)info.address) + (y * info.pitch) + (x * info.pixel_size));
@@ -185,6 +183,8 @@ void v_fb::ega_putc(uint32_t x, uint32_t y, uint8_t ega_attributes, char charact
         uint16_t char_data = ((uint16_t)ega_attributes << 8) | character;
 
         *target_address = char_data;
+
+        x++;
     }
     return;
 }
@@ -211,7 +211,7 @@ void v_fb::ega_puts(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char
         if (target_char == '\0') {
             x = x_cnt;
             y = y_cnt;
-            return;
+            break;
         } else if (target_char == '\n') {
             y_cnt++;
             x_cnt = x;
@@ -225,7 +225,6 @@ void v_fb::ega_puts(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char
             x_cnt--;
         } else {
             ega_putc(x_cnt, y_cnt, ega_attributes, target_char);
-            x_cnt++;
         }
         
         // Wrap around if it's hit the edge of the screen
@@ -242,6 +241,9 @@ void v_fb::ega_puts(uint32_t& x, uint32_t& y, uint8_t ega_attributes, const char
 
         index++;
     }
+
+    x = x_cnt;
+    y = y_cnt;
 }
 
 /**
@@ -518,36 +520,77 @@ void v_fb::draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, ui
  * @param fg_color      Foreground character color
  * @param bg_color      Background character color
  */
-void v_fb::fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, uint32_t bg_color) {
+void v_fb::fb_putc(uint32_t& x, uint32_t& y, const char target_char, uint32_t fg_color, uint32_t bg_color) {
 
-    if (target_char > font->char_count) {
-        target_char = 0;
+    if (target_char == 0 || target_char > font->char_count) {
+        return;
     }
 
     int char_width = font->char_width;
     int char_height = font->char_height;
 
-    // Get data for this char
-    const unsigned int* char_data = font->get_char(target_char);
+    // Switch for special characters
+    switch (target_char) {
 
-    // Calculate starting address and offset to next line
-    void* target_address = get_target_address(x, y);
-    size_t line_offset = info.pitch - (char_width * info.pixel_size);
+        case '\n':
+            x = 0;
+            y += char_height;
+            return;
 
-   for ( int yIt = 0; yIt < char_height; yIt++) {
+        case '\t':
+            x += (char_width * 4);
+            return;
 
-       unsigned int line_data = char_data[yIt];
-       for (int i = char_width; i > 0;) {
-            i--;
-            if (line_data & (1 << i))
-                draw_pixel(target_address, fg_color);
-            else
-                draw_pixel(target_address, bg_color);
+        case '\b':
+            if (x == 0) {
+                x = info.width;
+                y -= char_height;
+            }
+            x -= char_width;
+            fb_putc(x, y, ' ', fg_color, bg_color);
+            x -= char_width;
+            return;
 
-            target_address = (void*)((uintptr_t)target_address + info.pixel_size);
-       }
-       target_address = (void*)((uintptr_t)target_address + line_offset);
-   } 
+        default:
+            {
+            // Get data for this char
+            const unsigned int* char_data = font->get_char(target_char);
+
+            // Calculate starting address and offset to next line
+            void* target_address = get_target_address(x, y);
+            size_t line_offset = info.pitch - (char_width * info.pixel_size);
+
+            for (int yIt = 0; yIt < char_height; yIt++) {
+
+                unsigned int line_data = char_data[yIt];
+                for (int i = char_width; i > 0;) {
+                        i--;
+                        if (line_data & (1 << i))
+                            draw_pixel(target_address, fg_color);
+                        else
+                            draw_pixel(target_address, bg_color);
+
+                        target_address = (void*)((uintptr_t)target_address + info.pixel_size);
+                }
+                target_address = (void*)((uintptr_t)target_address + line_offset);
+            }
+            
+            x += char_width;
+            }
+            break;
+    }
+
+   // If reached edge of screen, wrap around
+    if (x >= info.width) {
+        x = 0;
+        y += char_height;
+    }
+
+    // If reached end of screen, wrap around vertically
+    if (y >= info.height) {
+        y = 0;
+        fb_blank(bg_color);
+    }
 }
 
 /**
@@ -562,59 +605,18 @@ void v_fb::fb_putc(uint32_t x, uint32_t y, char target_char, uint32_t fg_color, 
  */
 void v_fb::fb_puts(uint32_t& x, uint32_t& y, const char* string, uint32_t fg_color, uint32_t bg_color) {
 
-    uint8_t char_width = font->char_width;
-    uint8_t char_height = font->char_height;
-
-    uint32_t x_i = x;
-    uint32_t y_i = y;
-
     uint32_t char_it = 0;
 
     // Loop through string until null termination
     while(1) {
         char target_char = string[char_it];
 
-        // Switch for special characters
-        switch (target_char) {
-
-            case '\0':
-                x = x_i;
-                y = y_i;
-                return;
-
-            case '\n':
-                x_i = 0;
-                y_i += char_height;
-                break;
-
-            case '\t':
-                x_i += (char_width * 4);
-                break;
-
-            case '\b':
-                if (x_i == 0) {
-                    x_i = info.width;
-                    y_i -= char_height;
-                }
-                x_i -= char_width;
-                break;
-
-            default:
-                fb_putc(x_i, y_i, target_char, fg_color, bg_color);
-                x_i += char_width;
+        // Check for null termination
+        if (target_char == '\0') {
+            return;
         }
-
-        // If reached edge of screen, wrap around
-        if (x_i >= info.width) {
-            x_i = 0;
-            y_i += char_height;
-        }
-
-        // If reached end of screen, wrap around vertically
-        if (y_i >= info.height) {
-            y_i = 0;
-            fb_blank(bg_color);
-        }
+        
+        fb_putc(x, y, target_char, fg_color, bg_color);
 
         char_it++;
     }
@@ -669,15 +671,31 @@ void v_fb::fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t lengt
 
 /* #endregion */
 
-void v_fb::show() {
-    memcpy(fb.address, info.address, info.size);
+void v_fb::show(uint32_t x, uint32_t y) {
+
+    unsigned char* source = (unsigned char*)info.address;
+    unsigned char* target = (unsigned char*)fb.address + (fb.pitch * y) + (fb.pixel_size * x);
+
+    if (info.width < fb.width) {
+
+        for (unsigned int row = 0; row < info.height; row++) {
+
+            memcpy(target, source, info.pitch);
+            target += fb.pitch;
+            source += info.pitch;
+        }
+
+    } else {
+
+        memcpy(target, source, info.size);
+    }
 }
 
 void v_fb::blank(uint32_t color) {
     fb_blank(color);
 }
 
-void v_fb::draw_c(uint32_t x, uint32_t y, char target_char, 
+void v_fb::draw_c(uint32_t& x, uint32_t& y, char target_char, 
     uint32_t fg, uint32_t bg, uint32_t ega) {
 
     if (info.direct_color)

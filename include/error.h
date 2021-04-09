@@ -1,7 +1,7 @@
 #ifndef ERROR_H
 #define ERROR_H
 
-#include "terminal.h"
+#include "terminal_def.h"
 
 #include <stdint.h>
 
@@ -19,5 +19,7 @@ void check_error_terminal();
 void raise_error(uint32_t error_code, char* caller);
 
 const char* get_code_info(uint32_t error_code);
+
+#include "terminal.h"
 
 #endif

@@ -12,6 +12,8 @@
 extern visual_terminal* boot_terminal;
 extern visual_terminal* active_terminal;
 
+void draw_active_cursor();
+
 uint16_t stringify(char* target_buffer, int number, uint8_t base);
 
 #endif

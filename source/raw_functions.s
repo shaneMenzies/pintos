@@ -2,6 +2,11 @@
 
 .section .data
 
+.global fpu_status
+.type fpu_status STT_OBJECT
+fpu_status:
+.word 1
+
 idtr:
 .space 8, 0
 
@@ -117,4 +122,22 @@ io_wait:
 .type test_soft_int STT_FUNC
 test_soft_int:
     int 33
+    ret
+
+.global fpu_init
+.type fpu_init STT_FUNC
+fpu_init:
+    movw [fpu_status], 0xffff
+    mov edx, cr0
+    and edx, (-1) - ((1<<2) + (1<<3))
+    mov cr0, edx
+    fninit
+    fnstsw [fpu_status]
+    cmpw [fpu_status], 0
+    jne .nofpu
+    mov eax, 1
+    ret
+
+.nofpu:
+    mov eax, 0
     ret

@@ -105,7 +105,7 @@ namespace interrupts {
 
         raise_error(003, const_cast<char*>("gpf_handler"));
         active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
-        active_terminal->show();
+        active_terminal->update();
         
         disable_interrupts();
         while(1) {
@@ -138,7 +138,7 @@ namespace interrupts {
 
         raise_error(11, const_cast<char*>("segment_fault"));
         active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
-        active_terminal->show();
+        active_terminal->update();
         
         disable_interrupts();
         while(1) {
@@ -155,7 +155,7 @@ namespace interrupts {
 
         raise_error(003, const_cast<char*>("page_fault"));
         active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
-        active_terminal->show();
+        active_terminal->update();
         
         disable_interrupts();
         while(1) {
@@ -174,9 +174,12 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 0 Called\n"));
-        active_terminal->show();
+        disable_interrupts();
+
+        timer::sys_int_timer->run_tasks();
+
         PIC_EOI(0);
+        enable_interrupts();
     }
 
     __attribute__((interrupt)) void irq_1(interrupt_frame* frame) {
@@ -184,20 +187,23 @@ namespace interrupts {
         (void) frame;
 
         unsigned char scan_code = in_byte(KB_DATA);
-        char code_translation = keyboard::code_translation[scan_code];
 
-        active_terminal->write(const_cast<char*>("\nIRQ 1 Called\n"));
-        active_terminal->tprintf(const_cast<char*>("Scan Code %x = %c"), scan_code, code_translation);
-        active_terminal->show();
+        if (scan_code > 0x7f) {
+            keyboard::key_break(scan_code);
+        } else {
+            keyboard::key_make(scan_code);
+        }
+
         PIC_EOI(1);
+
     }
 
     __attribute__((interrupt)) void irq_2(interrupt_frame* frame) {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 2 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 2 Called\n"));
+        active_terminal->update();
         PIC_EOI(2);
     }
 
@@ -205,8 +211,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 3 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 3 Called\n"));
+        active_terminal->update();
         PIC_EOI(3);
     }
 
@@ -214,8 +220,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 4 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 4 Called\n"));
+        active_terminal->update();
         PIC_EOI(4);
     }
 
@@ -223,8 +229,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 5 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 5 Called\n"));
+        active_terminal->update();
         PIC_EOI(5);
     }
 
@@ -232,8 +238,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 6 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 6 Called\n"));
+        active_terminal->update();
         PIC_EOI(6);
     }
 
@@ -241,8 +247,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 7 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 7 Called\n"));
+        active_terminal->update();
         PIC_EOI(7);
     }
 
@@ -250,8 +256,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 8 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 8 Called\n"));
+        active_terminal->update();
         PIC_EOI(8);
     }
 
@@ -259,8 +265,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 9 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 9 Called\n"));
+        active_terminal->update();
         PIC_EOI(9);
     }
 
@@ -268,8 +274,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 10 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 10 Called\n"));
+        active_terminal->update();
         PIC_EOI(10);
     }
 
@@ -277,8 +283,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 11 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 11 Called\n"));
+        active_terminal->update();
         PIC_EOI(11);
     }
 
@@ -286,8 +292,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 12 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 12 Called\n"));
+        active_terminal->update();
         PIC_EOI(12);
     }
 
@@ -295,8 +301,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 13 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 13 Called\n"));
+        active_terminal->update();
         PIC_EOI(13);
     }
 
@@ -304,8 +310,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 14 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 14 Called\n"));
+        active_terminal->update();
         PIC_EOI(14);
     }
 
@@ -313,24 +319,9 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nIRQ 15 Called\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nIRQ 15 Called\n"));
+        active_terminal->update();
         PIC_EOI(15);
-    }
-
-    /**
-     * @brief Default handler for keyboard interrupts on INT 33
-     * 
-     */
-    __attribute__((interrupt)) void keyboard_handler(interrupt_frame* frame) {
-
-        (void) frame;
-
-        unsigned char scan_code = in_byte(KB_DATA);
-
-        active_terminal->kb_append_c(keyboard::code_translation[scan_code]);
-
-        PIC_EOI(1);
     }
 
     /* #endregion */
@@ -341,8 +332,8 @@ namespace interrupts {
 
         (void) frame;
 
-        active_terminal->write(const_cast<char*>("\nInterrupt success!\n"));
-        active_terminal->show();
+        active_terminal->write_s(const_cast<char*>("\nInterrupt success!\n"));
+        active_terminal->update();
     }
 
     /* #endregion*/

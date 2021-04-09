@@ -1,14 +1,3 @@
-TODO: Further Memory Optimization
-    Memory Mark classes
-        Adaptable to work well with paging
-        Self-balancing binary search tree, in order to find the smallest
-            suitable mark that a certain allocation could fit in
-        Store size
-            Can be implemented into the sized deallocations too
-
-TODO: PS/2 Parsing and Interrupts
-    Actual terminal functionality?!?!?!
-
 TODO: Virtual Memory/Paging
 
 TODO: Long Mode/x86_64

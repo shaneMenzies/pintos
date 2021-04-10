@@ -542,13 +542,11 @@ void v_fb::fb_putc(uint32_t& x, uint32_t& y, const char target_char, uint32_t fg
             return;
 
         case '\b':
-            if (x == 0) {
-                x = info.width;
-                y -= char_height;
+            if (x > (unsigned int)char_width) {
+                x -= char_width;
+                fb_putc(x, y, ' ', fg_color, bg_color);
+                x -= char_width;
             }
-            x -= char_width;
-            fb_putc(x, y, ' ', fg_color, bg_color);
-            x -= char_width;
             return;
 
         default:

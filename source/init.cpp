@@ -56,6 +56,10 @@ void late_init() {
     memory_init(&main_mb_info);
     talloc((void*)&kernel_start, (size_t)( (uintptr_t)&kernel_end - (uintptr_t)&kernel_start ) );
 
+    // Create the kernel command line and master terminal
+    kernel::cmd_init();
+    log_terminal = new terminal();
+
     // Start system timer
     timer::sys_timer_init(32);
 

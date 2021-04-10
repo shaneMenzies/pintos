@@ -5,10 +5,7 @@
 #include <stddef.h>
 #include "display.h"
 #include "timer.h"
-
-enum {
-    KB_BUF_SIZE = 1024,
-};
+#include "keyboard.h"
 
 class terminal {
 
@@ -19,20 +16,20 @@ class terminal {
         char* next;
         char* end;
 
-        char keyboard[KB_BUF_SIZE];
-        uint16_t kb_index;
-        unsigned char kb_flags = 0;
+        keyboard::kb_handler handler;
 
     public:
         terminal(size_t text_size = 65536);
+        terminal(keyboard::kb_handler handler, size_t text_size = 65536);
         ~terminal();
+
+        void set_handler(keyboard::kb_handler new_handler);
+        inline void send_key(char character);
 
         void write_c(const char character);
         void write_s(const char* string);
 
         void tprintf(const char* format, ...);
-
-        void kb_clear();
 
         void clear();
 };
@@ -57,6 +54,10 @@ class visual_terminal : public terminal {
                         uint32_t bg = 0, uint8_t ega = 0x0f, 
                         double target_fill = 0.9f);
 
+        inline void send_key(char character) {
+            handler.run_action(character);
+            write_c(character);
+        }
         void write_c(const char character);
         void write_s(const char* string);
         void tprintf(const char* format, ...);
@@ -64,7 +65,7 @@ class visual_terminal : public terminal {
 
         void clear();
 
-        void update();
+        inline void update() {fb.show();}
 };
 
 #endif

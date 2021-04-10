@@ -8,6 +8,7 @@
 #include "memory.h"
 #include "display.h"
 #include "libk.h"
+#include "commands.h"
 
 extern visual_terminal* boot_terminal;
 extern visual_terminal* active_terminal;

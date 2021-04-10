@@ -2,6 +2,7 @@
 #define KERNEL_H
 
 #include <stdint.h>
+#include "terminal.h"
 
 enum {
     POINTER_MASK = ~(1ULL << (sizeof(void*) * 8))
@@ -10,6 +11,8 @@ enum {
 extern "C" {
 void call_kernel();
 }
+
+extern terminal* log_terminal;
 
 void kernel_main();
 

@@ -7,7 +7,13 @@
  * 
  */
 
+#pragma GCC diagnostic ignored "-Wchar-subscripts"
+
 #include "keyboard.h"
+
+#include "terminal.h"
+#include "libk.h"
+#include "io.h"
 
 namespace keyboard {
 
@@ -603,8 +609,7 @@ namespace keyboard {
 
         // Update the active terminal if necessary
         if (to_write != 0) {
-            active_terminal->write_c(to_write);
-            active_terminal->update();
+            active_terminal->send_key(to_write);
         }
     }
 
@@ -640,4 +645,54 @@ namespace keyboard {
     void wait_ack() {
         while(in_byte(KB_CMD) != ACK) {}
     }
+
+    kb_handler::kb_handler(size_t buffer_size) {
+
+        // Prepare keyboard buffer
+        buffer_start = (char*) malloc(buffer_size);
+        buffer_next = buffer_start;
+        *buffer_next = '\0';
+        buffer_end = buffer_start + buffer_size;
+    }
+
+    void kb_handler::buffer_hard_clear() {
+
+        fill_mem(buffer_start, (size_t)(buffer_end - buffer_start), 0);
+        buffer_next = buffer_start;
+    }
+
+    void kb_handler::run_action(char target) {
+
+        switch (key_actions[(unsigned char)target].code) {
+
+            case TO_BUFFER:
+                buffer_write_c(target);
+                break;
+
+            case BUFFER_SIGNAL:
+                buffer_write_c(target);
+                // fallthrough
+
+            case SEND_SIGNAL:
+                signal[key_actions[(unsigned char)target].signal](this, target);
+                break;
+
+            case HARD_CLEAR:
+                buffer_hard_clear();
+                break;
+
+            case CLEAR_BUFFER:
+                buffer_clear();
+                break;
+
+            case NO_ACTION:
+                // fallthrough
+            default:
+                break;
+        }
+
+        return;
+    }
 }
+
+#pragma GCC diagnostic pop

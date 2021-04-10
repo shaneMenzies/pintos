@@ -9,7 +9,7 @@ TOOLCHAIN_64 := x86_64-elf
 
 ASM_FLAGS := -g
 C_FLAGS := -I$(INCLUDE_DIR) -I$(INCLUDE_DIR)/acpi -fomit-frame-pointer -Wall -Wextra -nostdlib -Ofast -ffreestanding -g
-CXX_FLAGS := $(C_FLAGS) -fno-exceptions -fno-rtti
+CXX_FLAGS := $(C_FLAGS) -fno-exceptions -fno-rtti -fdiagnostics-show-option
 LD_FLAGS := -nostdlib -Map kernel.map -L. -lgcc -g
 
 LINK_SCRIPT := $(CFG_DIR)/linker.ld

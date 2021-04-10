@@ -14,15 +14,17 @@ visual_terminal* active_terminal;
 
 /* #region terminal */
 
-terminal::terminal(size_t text_size) {
+terminal::terminal(size_t text_size) : handler() {
 
     // Allocate the text buffer
     start = (char*)malloc(text_size);
     next = start;
     end = (char*)((uintptr_t)start + text_size);
 
-    // Clear out the keyboard buffer
-    kb_clear();
+
+    // Set up the special actions for the command-line
+    handler.set_signal(0xff, kernel::send_command);
+    handler.set_action('\n', keyboard::key_action(keyboard::SEND_SIGNAL, 0xff));
 }
 
 terminal::~terminal() {
@@ -33,17 +35,18 @@ terminal::~terminal() {
         end--;
     }
 
-    // Clear keyboard buffer
-    kb_clear();
-
     // Free the text buffer
     free(start);
 }
 
-void terminal::kb_clear() {
-    for (int index = 0; index < KB_BUF_SIZE; index++) {
-        keyboard[index] = 0;
-    }
+void terminal::set_handler(keyboard::kb_handler new_handler) {
+
+    handler = new_handler;
+}
+
+inline void terminal::send_key(char character) {
+    handler.run_action(character);
+    write_c(character);
 }
 
 void terminal::write_c(const char character) {
@@ -245,6 +248,8 @@ void visual_terminal::write_c(const char character) {
         fill_mem((void*)((uintptr_t)fb.info.end - line_shift), line_shift, default_bg);
         y_pos -= lines;
     }
+
+    update();
 }
 
 void visual_terminal::write_s(const char* string) {
@@ -289,6 +294,8 @@ void visual_terminal::write_s(const char* string) {
         fill_mem((void*)((uintptr_t)fb.info.end - line_shift), line_shift, default_bg);
         y_pos -= lines;
     }
+
+    update();
 }
 
 void visual_terminal::draw_cursor() {
@@ -310,10 +317,6 @@ void visual_terminal::clear() {
     fb.blank(default_bg);
     x_pos = 0;
     y_pos = 0;
-}
-
-void visual_terminal::update() {
-    fb.show();
 }
 
 /* #endregion */

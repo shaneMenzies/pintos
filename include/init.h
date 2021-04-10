@@ -9,6 +9,7 @@
 #include "display.h"
 #include "gdt.h"
 #include "timer.h"
+#include "commands.h"
 
 extern "C" {
 uint32_t return_ebx();

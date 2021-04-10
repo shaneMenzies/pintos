@@ -1,9 +1,10 @@
 #ifndef KEYBOARD_H
 #define KEYBOARD_H
 
-#include "terminal.h"
-#include "libk.h"
-#include "io.h"
+#pragma GCC diagnostic ignored "-Wchar-subscripts"
+
+#include <stdint.h>
+#include <stddef.h>
 
 namespace keyboard {
 
@@ -58,6 +59,86 @@ namespace keyboard {
 
     void update_lights();
     void wait_ack();
+
+    enum key_action_codes : unsigned char {
+
+        TO_BUFFER = 0,
+        NO_ACTION = 1,
+
+        BUFFER_SIGNAL = 0x0e,
+        SEND_SIGNAL = 0x0f,
+
+        HARD_CLEAR = 0xfe,
+        CLEAR_BUFFER = 0xff,
+    };
+
+    struct key_action {
+        unsigned char signal;
+        key_action_codes code;
+
+        inline key_action(key_action_codes code = TO_BUFFER, unsigned char signal = 0) : signal(signal), code(code) {};
+    };
+
+    class kb_handler {
+
+        private:
+            char* buffer_start;
+            char* buffer_next;
+            char* buffer_end;
+
+            key_action key_actions[0x80] = {key_action()};
+            void (*signal[0x100])(kb_handler* handler, char character) = {0};
+            void (*on_buffer_write)(char character) = 0;
+
+        public:
+            kb_handler(size_t buffer_size = 512);
+
+            inline void buffer_write_c(char target) {
+
+                *buffer_next = target;
+                buffer_next++;
+                if (buffer_next > buffer_end) buffer_next = buffer_start;
+                *buffer_next = '\0';
+
+                if ((uintptr_t)on_buffer_write != 0) {
+                    on_buffer_write(target);
+                }
+            }
+
+            inline void buffer_clear() {
+                buffer_next = buffer_start;
+                *buffer_next = '\0';
+            }
+
+            void buffer_hard_clear();
+            inline const char* get_buffer() {
+                return (const char*)buffer_start;
+            }
+
+            inline void set_action(char target, key_action action = key_action(TO_BUFFER,0)) {
+                key_actions[target] = action;
+            }
+
+            inline void set_on_buffer_write(void (*new_handler)(char character)) {
+                on_buffer_write = new_handler;
+            }
+
+            inline void clear_action(char target) {
+                key_actions[target] = key_action(TO_BUFFER,0);
+            }
+
+            inline void set_signal(unsigned char index, void (*new_signal)(kb_handler* handler, char character)) {
+                signal[index] = new_signal;
+            }
+
+            inline void clear_signal(unsigned char index) {
+                signal[index] = 0;
+            }
+
+            void run_action(char target);
+    };
 }
+
+#pragma GCC diagnostic pop
 
 #endif

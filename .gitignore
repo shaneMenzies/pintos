@@ -52,8 +52,12 @@ Mkfile.old
 dkms.conf
 memprint
 workspace.code-workspace
+.idea/
+.vscode/
 pintos.bin
 pintos.iso
 .gdbinit
 html/
 latex/
+testing/
+qemu_dir/

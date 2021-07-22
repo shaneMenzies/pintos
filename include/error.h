@@ -2,6 +2,7 @@
 #define ERROR_H
 
 #include "terminal_def.h"
+#include "io.h"
 
 #include <stdint.h>
 

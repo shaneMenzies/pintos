@@ -7,7 +7,12 @@
  * 
  */
 
-#include "memory.h"
+#include "p_memory.h"
+
+extern "C" {
+    extern uintptr_t kernel_start;
+    extern uintptr_t kernel_end;
+}
 
 trees::mark_tree free_marks;
 trees::mark_tree used_marks;
@@ -80,34 +85,63 @@ trees::bookmark* mkalloc() {
 }
 
 /**
- * @brief Converts a mmap size/info structure into a bookmark
+ * @brief Converts a multiboot mmap entry into a bookmark
  * 
- * @param mmap_addr     Pointer to mmap size/info structure
+ * @param mmap          Pointer to multiboot mmap entry structure
  * @return bookmark     Bookmark filled with info from mmap structure
  */
-trees::bookmark mmap_to_mark (uint32_t* mmap_addr) {
+trees::bookmark mmap_to_mark (multiboot_mmap_entry* mmap) {
 
-    void* start = (void*)(*(uint64_t*)(mmap_addr + 1));
-    void* end = (void*)((uintptr_t)start + (uintptr_t)(*(uint64_t*)(mmap_addr + 3)));
-    uint32_t flags = *(mmap_addr + 5);
+    void* start = (void*)mmap->addr;
+    void* end = (void*)((uintptr_t)start + (uintptr_t)(mmap->len));
 
     trees::bookmark return_mark(start, end);
 
-    if (flags == 1) {
-        return_mark.flags |= trees::MARK_FREE;
-    } else {
-        return_mark.flags &= ~(trees::MARK_FREE);
+    // Check the mmap type
+    switch (mmap->type) {
+
+        case MULTIBOOT_MEMORY_AVAILABLE:
+            return_mark.flags |= trees::MARK_FREE;
+            break;
+
+        case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
+            /* fallthrough */
+        default:
+            return_mark.flags &= (!trees::MARK_FREE); 
     }
 
     return return_mark;
 }
 
 /**
- * @brief Initializes the kernel bookmarks from a multiboot structure
+ * @brief Converts an efi mmap entry into a bookmark
  * 
- * @param mb_addr   Pointer to a mb_info structure
+ * @param mmap          Pointer to efi mmap entry structure
+ * @return bookmark     Bookmark filled with info from mmap structure
  */
-void memory_init(struct mb_info* mb_addr) {
+trees::bookmark mmap_to_mark (efi_mmap_entry* mmap) {
+
+    void* start = (void*)mmap->p_start;
+    void* end = (void*)((uintptr_t)start + ((uintptr_t)(mmap->num_pages) * EFI_PAGE_SIZE));
+
+    trees::bookmark return_mark(start, end);
+
+    // Check the mmap type
+    if ((mmap->type > 0 && mmap->type < 5) || mmap->type == 7 || mmap->type == 14) {
+        return_mark.flags |= trees::MARK_FREE;
+    } else {
+        return_mark.flags &= (!trees::MARK_FREE);
+    }
+
+    return return_mark;
+}
+
+/**
+ * @brief Initializes the kernel bookmarks from the given boot information
+ * 
+ * @param mb_info   Pointer to the boot info structure
+ */
+void memory_init(multiboot_boot_info* mb_info) {
 
     // Start up mark allocation on bootstrap bank
     mkalloc_start = (void*)bootstrap_bank;
@@ -117,28 +151,84 @@ void memory_init(struct mb_info* mb_addr) {
     free_marks.size_sorted = true;
     used_marks.size_sorted = false;
 
-    uint32_t mmap_length = mb_addr->mmap_length;
-    unsigned char* mmap_index = (unsigned char*)(mb_addr->mmap_addr);
-    unsigned char* mmap_end = (unsigned char*)(mmap_index + mmap_length);
-    
-    // Loop through the mmap entries, adding them to the trees
-    while (mmap_index < mmap_end) {
-        uint32_t size = (*(uint32_t*)mmap_index + 4);
-        trees::bookmark* converted_mark = mkalloc();
-        *converted_mark = mmap_to_mark((uint32_t*)mmap_index);
+    // Did GRUB give us a multiboot mmap?
+    if ((uintptr_t)mb_info->mmap_tag) {
 
-        if (converted_mark->flags & trees::MARK_FREE) {
-            // Check if this is a new greatest accessible address
-            if (converted_mark->end > max_phys_address)
-                max_phys_address = converted_mark->end;
+        // Loop through the mmap entries, adding them to the trees
+        multiboot_mmap_entry* next_mmap = (&mb_info->mmap_tag->entries[0]);
+        uintptr_t mmap_end = (uintptr_t)mb_info->mmap_tag + mb_info->mmap_tag->size;
+        size_t entry_size = mb_info->mmap_tag->entry_size;
+        while (1) {
+            trees::bookmark* converted_mark = mkalloc();
+            *converted_mark = mmap_to_mark(next_mmap);
 
-            free_marks.insert(converted_mark);
-        } else {
-            used_marks.insert(converted_mark);
+            if (converted_mark->flags & trees::MARK_FREE) {
+                // Check if this is a new greatest accessible address
+                if (converted_mark->end > max_phys_address)
+                    max_phys_address = converted_mark->end;
+
+                free_marks.insert(converted_mark);
+            } else {
+                used_marks.insert(converted_mark);
+            }
+
+            // Move to the next entry, if it exists
+            next_mmap = (multiboot_mmap_entry*)((uintptr_t)next_mmap + entry_size);
+            if ((uintptr_t)next_mmap >= mmap_end) {
+                break;
+            }
         }
 
-        mmap_index = (unsigned char*) ((uintptr_t)mmap_index + size);
+    // Did GRUB give us an EFI mmap?
+    } else if ((uintptr_t)mb_info->efi_mmap_tag) {
+
+        // Loop through the mmap entries, adding them to the trees
+        efi_mmap_entry* next_mmap = (efi_mmap_entry*)(&mb_info->efi_mmap_tag->efi_mmap[0]);
+        uintptr_t mmap_end = (uintptr_t)mb_info->efi_mmap_tag + mb_info->efi_mmap_tag->size;
+        size_t entry_size = mb_info->efi_mmap_tag->descr_size;
+        while (1) {
+            trees::bookmark* converted_mark = mkalloc();
+            *converted_mark = mmap_to_mark(next_mmap);
+
+            if (converted_mark->flags & trees::MARK_FREE) {
+                // Check if this is a new greatest accessible address
+                if (converted_mark->end > max_phys_address)
+                    max_phys_address = converted_mark->end;
+
+                free_marks.insert(converted_mark);
+            } else {
+                used_marks.insert(converted_mark);
+            }
+
+            // Move to the next entry, if it exists
+            next_mmap = (efi_mmap_entry*)((uintptr_t)next_mmap + entry_size);
+            if ((uintptr_t)next_mmap >= mmap_end) {
+                break;
+            }
+        }
+
+    // Do we at least have some info on the total memory?
+    } else if ((uintptr_t)mb_info->meminfo_tag) {
+        trees::bookmark* new_mark = mkalloc();
+        new_mark->start = (void*)0x1;
+        new_mark->end = (void*)((mb_info->meminfo_tag->mem_lower + mb_info->meminfo_tag->mem_upper) | 0UL);
+        new_mark->size = (size_t)(mb_info->meminfo_tag->mem_lower + mb_info->meminfo_tag->mem_upper - 1);
+        free_marks.insert(new_mark);
+
+    // At least we know the kernel was loaded so assume all memory below the kernel end is available, but nothing else
+    } else {
+        trees::bookmark* new_mark = mkalloc();
+        new_mark->start = (void*)0x1;
+        new_mark->end = (void*)&kernel_end;
+        new_mark->size = (size_t)((uintptr_t)&kernel_end - 1);
+        free_marks.insert(new_mark);
     }
+
+    // Allocate the areas already being used
+    talloc((void*)&kernel_start, (size_t)( (uintptr_t)&kernel_end - (uintptr_t)&kernel_start ) );
+    talloc(mb_info->boot_start, mb_info->boot_size);
+    talloc(mb_info->mb_start, mb_info->mb_size);    
+    talloc((void*)0, 32);
 }
 
 /**
@@ -150,7 +240,7 @@ void memory_init(struct mb_info* mb_addr) {
 void* malloc(size_t size) {
 
     // Find a suitable mark, and remove it from the free marks
-    trees::bookmark* target_mark = free_marks.find_suitable(size);
+    trees::bookmark* target_mark = free_marks.find_size(size);
     free_marks.seperate(target_mark);
 
     // Save the address to return, and prepare a new mark
@@ -182,6 +272,69 @@ void* malloc(size_t size) {
     new_mark->end = (void*)((uintptr_t)return_address + size);
     new_mark->flags &= ~(trees::MARK_FREE);
     used_marks.insert(new_mark);
+
+    // Ensure the area is paged
+    paging::identity_map_region((uintptr_t)return_address, size);
+
+    return return_address;
+}
+
+void* balloc(size_t size, size_t alignment) {
+
+    // Find suitable mark and remove it
+    uintptr_t split_address = 0;
+    trees::bookmark* target_mark = free_marks.find_aligned(size, alignment, split_address);
+    free_marks.seperate(target_mark);
+
+    void* return_address;
+    trees::bookmark* used_mark;
+
+    // Check if the mark needs to be split
+    if (split_address) {
+        // New mark for front section being cut off
+        trees::bookmark* split_mark = mkalloc();
+        split_mark->start = target_mark->start;
+        split_mark->end = (void*)(split_address - 1);
+        split_mark->size = (size_t)((split_address - 1) - (uintptr_t)(target_mark->start));
+        split_mark->flags |= trees::MARK_FREE;
+        free_marks.insert(split_mark);
+
+        // Adjust old mark
+        target_mark->start = (void*)split_address;
+        target_mark->size -= split_mark->size;
+    }
+
+    // Standard procedure
+    return_address = target_mark->start;
+
+    // Determine if the mark should be put back or not
+    if (target_mark->size > size) {
+
+        // Needs to be put back, and a new mark is needed
+        target_mark->start = (void*)((uintptr_t)target_mark->start + size);
+        target_mark->size = (size_t)((uintptr_t)target_mark->end 
+                                    - (uintptr_t)target_mark->start);
+        target_mark->flags = 0;
+        target_mark->balance = 0;
+        free_marks.insert(target_mark);
+
+        used_mark = mkalloc();
+        used_mark->start = return_address;
+
+    } else {
+
+        // Don't need to put the mark back, so it can just be reused
+        used_mark = target_mark;
+    }
+
+    // Prepare, and insert, the mark for the used space
+    used_mark->size = size;
+    used_mark->end = (void*)((uintptr_t)return_address + size);
+    used_mark->flags &= ~(trees::MARK_FREE);
+    used_marks.insert(used_mark);
+
+    // Ensure the area is paged
+    paging::identity_map_region((uintptr_t)return_address, size);
 
     return return_address;
 }
@@ -272,6 +425,9 @@ void* talloc(void* target_address, size_t size) {
     new_mark->size = size;
     new_mark->end = end_address;
     used_marks.insert(new_mark);
+
+    // Ensure the area is paged
+    paging::identity_map_region((uintptr_t)target_address, size);
 
     return target_address;
 }

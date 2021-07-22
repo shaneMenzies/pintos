@@ -11,8 +11,6 @@
 
 visual_terminal* error_terminal = 0;
 
-struct error_code_section* error_code_addr = 0;
-
 /**
  * @brief Public function to set the error terminal
  * 
@@ -23,18 +21,6 @@ void set_error_terminal(visual_terminal* new_terminal) {
 }
 
 /**
- * @brief Verifies that the error terminal exists
- * 
- */
-void check_error_terminal() {
-    
-    // If no error terminal has been set, then make one
-    if (error_terminal == 0) {
-        error_terminal = new visual_terminal();
-    }
-}
-
-/**
  * @brief Raises an error
  * 
  * @param error_code    Error code
@@ -42,11 +28,7 @@ void check_error_terminal() {
  */
 void raise_error(uint32_t error_code=0, char* caller=0) {
 
-    // Check to ensure the error terminal exists
-    check_error_terminal();
-
-    error_code_addr->code = error_code;
-    error_code_addr->caller = caller;
+    serial::write_s("Error Raised!", COM_1);
 
     // Print the error code to the terminal
     const char error_code_format[] = "\nError No. %u in %s:\n\t";
@@ -55,6 +37,7 @@ void raise_error(uint32_t error_code=0, char* caller=0) {
 
     // Print the associated info on this code
     error_terminal->write_s(const_cast<char*>(get_code_info(error_code)));
+    serial::write_s(const_cast<char*>(get_code_info(error_code)), COM_1);
 
     error_terminal->update();
 

@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include "terminal.h"
 
-enum {
-    POINTER_MASK = ~(1ULL << (sizeof(void*) * 8))
-};
-
 extern "C" {
 void call_kernel();
 }

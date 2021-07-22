@@ -3,7 +3,7 @@
 
 #include "interrupts.h"
 #include "x86_tables.h"
-#include "memory.h"
+#include "p_memory.h"
 
 void gdt_init();
 

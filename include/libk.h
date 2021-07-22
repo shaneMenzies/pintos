@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 #include <stdarg.h>
-#include "memory.h"
 
 static const unsigned char bit_reverse_table[] = 
 {
@@ -37,11 +36,18 @@ inline bool is_alphanumeric(char character) {
     return (is_alphabet(character) || is_numeric(character));
 }
 
+template<typename T>
+inline bool is_signed() {
+    return (T(-1) < T(0));
+}
+
 void* memcpy(void* dest_ptr, const void* src_ptr, size_t size);
 
-void fill_mem(void* dest_ptr, size_t size, unsigned int fill_data);
+void fill_mem(void* dest_ptr, size_t size, unsigned long int fill_data);
 
 unsigned int reverse_bits(unsigned int target, size_t size);
+
+bool str_cmp(const char* first, const char* second);
 
 void printf(char* target_buffer, const char* format, ...);
 

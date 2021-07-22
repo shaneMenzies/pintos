@@ -3,6 +3,8 @@
 
 #include "fonts.h"
 #include "ibm_pc.h"
+#include "multiboot.h"
+#include "pintos_std.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -20,19 +22,63 @@ struct fb_info {
     uint8_t pixel_size;     // Actual Bytes per pixel
     uint8_t depth;          // Color depth in bits per pixel
 
-    bool palette_color;
-    uint32_t palette_addr;
-    uint16_t palette_num;
-
     bool direct_color;
-    uint8_t red_pos;
+    uint8_t red_shift;
     uint8_t red_mask;
-    uint8_t green_pos;
+    uint8_t green_shift;
     uint8_t green_mask;
-    uint8_t blue_pos;
+    uint8_t blue_shift;
     uint8_t blue_mask;
 
     bool ega_text;
+
+    fb_info() {}
+    fb_info(const fb_info& other) {
+
+        address = other.address;
+        end = other.end;
+        size = other.size;
+        pitch = other.pitch;
+        width = other.width;
+        height = other.height;
+        pixel_size = other.pixel_size;
+        depth = other.depth;
+        direct_color = other.direct_color;
+        red_shift = other.red_shift;
+        red_mask = other.red_mask;
+        green_shift = other.green_shift;
+        green_mask = other.green_mask;
+        blue_shift = other.blue_shift;
+        blue_mask = other.blue_mask;
+        ega_text = other.ega_text;
+    }
+
+    // Copy operator
+    fb_info& operator=(const fb_info& other) {
+
+        if (this == &other) {
+            return *this;
+        }
+
+        address = other.address;
+        end = other.end;
+        size = other.size;
+        pitch = other.pitch;
+        width = other.width;
+        height = other.height;
+        pixel_size = other.pixel_size;
+        depth = other.depth;
+        direct_color = other.direct_color;
+        red_shift = other.red_shift;
+        red_mask = other.red_mask;
+        green_shift = other.green_shift;
+        green_mask = other.green_mask;
+        blue_shift = other.blue_shift;
+        blue_mask = other.blue_mask;
+        ega_text = other.ega_text;
+
+        return *this;
+    }
 };
 
 class v_fb {
@@ -40,7 +86,7 @@ class v_fb {
     friend class visual_terminal;
 
     private:
-        Font* font = &ibm_pc_8x16;
+        const Font* font = &ibm_pc_8x16;
         inline void* get_target_address(uint32_t x, uint32_t y);
 
         // Text-mode functions
@@ -53,24 +99,24 @@ class v_fb {
                      uint32_t bg_color); 
         void fb_puts(uint32_t& x, uint32_t& y, const char* string, uint32_t fg_color, 
                      uint32_t bg_color);
-        void fb_blank(uint32_t color);
+        void fb_blank(uint8_t color);
         void fb_place_bmp(uint32_t x, uint32_t y, unsigned int bmp, uint32_t length, uint32_t fg, uint32_t bg);
 
     public:
         fb_info info;
-        size_t char_width;
-        size_t char_height;
+        uint16_t char_width;
+        uint16_t char_height;
         size_t char_pitch;
 
         v_fb();
         v_fb(uint32_t width, uint32_t height);
         ~v_fb();
 
-        void set_font(Font* new_font);
-        Font* get_font();
+        void set_font(const Font* new_font);
+        const Font* get_font();
 
         void show(uint32_t x = 0, uint32_t y = 0);
-        void blank(uint32_t color);
+        void blank(uint8_t color);
             
         // Printing characters and strings
         void draw_c(uint32_t& x, uint32_t& y, const char target_char, uint32_t fg, uint32_t bg, uint32_t ega);
@@ -90,7 +136,7 @@ typedef struct uint24_t {
     unsigned char byte[3];
 } uint24_t;
 
-void framebuffer_init(struct mb_info* mb_addr);
+void framebuffer_init(multiboot_boot_info* mb_info);
 
 inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color);
 

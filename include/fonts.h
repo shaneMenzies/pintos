@@ -11,15 +11,15 @@ class Font {
 
     public:
 
-        const int char_width;
-        const int char_height;
-        const int char_count;
+        const unsigned int char_width;
+        const unsigned int char_height;
+        const unsigned int char_count;
         const size_t char_offset;
 
-        Font(const int char_width, const int char_height, 
-            const int char_count, const unsigned int* bit_map);
+        Font(const unsigned int char_width, const unsigned int char_height, 
+            const unsigned int char_count, const unsigned int* bit_map);
 
-        unsigned int* get_char(char target);
+        unsigned int* get_char(char target) const;
 };
 
 #endif

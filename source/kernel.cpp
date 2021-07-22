@@ -10,26 +10,17 @@
 #include "kernel.h"
 
 #include "terminal.h"
-#include "memory.h"
+#include "p_memory.h"
 #include "init.h"
 #include "error.h"
 #include "timer.h"
 
 #include "display.h"
-#include "multiboot.h"
 #include "libk.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-
-extern "C" {
-void call_kernel() {
-    kernel_main();
-
-}
-    extern void test_soft_int();
-}
 
 terminal* log_terminal;
 
@@ -42,7 +33,7 @@ void kernel_main() {
     active_terminal->tprintf(const_cast<char*>("Hi there.\n%s"), test_string);
 
     if (float_support) {
-        active_terminal->tprintf("Floating Point Instruction Support Enabled, with Status: %x\n", fpu_status);
+        active_terminal->write_s("Floating Point Instruction Support Enabled\n");
     } else {
         active_terminal->write_s("Floating Point Instructions not supported\n");
     }

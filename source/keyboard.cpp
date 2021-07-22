@@ -560,10 +560,10 @@ namespace keyboard {
      * @brief Bool arrays, true for a key if it is in the made state
      * 
      */
-    bool made[0x100] = {false};
-    bool e0_made[0x100] = {false};
+    bool made[0x100] = {0};
+    bool e0_made[0x100] = {0};
 
-    bool lock[8] = {false};
+    bool lock[8] = {0};
 
     inline bool shift_active() {
         return (made[LEFT_SHIFT] || made[RIGHT_SHIFT]);

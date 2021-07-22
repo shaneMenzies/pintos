@@ -1,10 +1,12 @@
+OUTPUT_FORMAT(elf64-x86-64)
+
 ENTRY(_start)
 
 SECTIONS {
 
+    . = 0x20000;
     kernel_start = .;
     .text BLOCK(4K) : ALIGN(4K) {
-        *(.multiboot)
         *(.init)
         text_start = .;
         *(.text)

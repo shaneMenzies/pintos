@@ -107,87 +107,6 @@ void terminal::clear() {
     *next = '\0';
 }
 
-
-/**
- * @brief Converts a number into characters in the target char array
- * 
- * @param target_buffer     Char buffer for output to be placed in
- * @param number            Number to convert
- * @param base              Base to interpret number as
- * @return uint16_t         Chars placed
- */
-uint16_t stringify(char* target_buffer, int number, uint8_t base) {
-
-    uint16_t index = 0;
-    // Allocate some memory to temporarily store the digits of the number in
-    char* temp_string = (char*) malloc(64);
-
-    // Flag to set if number was negative
-    bool negative = false;
-
-    // If the number is negative, put a - in front and make it positive
-    if (number < 0) {
-        negative = true;
-        number = -number;
-    }
-
-    // Loop through placing digits until the number is gone
-    while (1) {
-        // Get the digit
-        char digit = number % base;
-        number /= base;
-
-        // Convert digit to corresponding ascii code
-        if (digit < 10) {
-            // Numerical characters
-            digit += 48;
-        } else {
-            // Alphabetical characters
-            // (87 instead of 97, simplified from (digit - 10) + 97)
-            digit += 87;
-        }
-
-        // Place the digit
-        temp_string[index] = digit;
-
-        // Break if number is 0
-        if (number <= 0) {
-            break;
-        } else {
-            // Else increment the index
-            index++;
-        }
-
-    }
-
-    if (negative) {
-        temp_string[++index] = '-';
-    }
-
-    // New index for target_buffer
-    uint16_t t_index = 0;
-
-    // temp_string now contains the digits, but they're backwards,
-    // so work through them backwards placing them in the target_buffer
-    while (1) {
-
-        target_buffer[t_index] = temp_string[index];
-
-        if (index == 0) {
-            break;
-        }
-
-        t_index += 1;
-        index -= 1;
-    }
-
-    // Free the allocated memory
-    free(temp_string);
-
-    // Return the number of chars placed
-    return (t_index + 1);
-}
-
 /* #endregion */
 
 /* #region visual_terminal */
@@ -203,6 +122,17 @@ visual_terminal::visual_terminal(size_t text_size, uint32_t fg, uint32_t bg,
 
     scroll_shift = fb.info.height - target_height;
     scroll_shift -= (scroll_shift % fb.char_height);
+
+    serial::write_s("\rCreating new Visual terminal.\r\n", COM_1);
+
+    char string_buffer[2048];
+    char format[] = "Framebuffer info:\r\nHeight: %u\r\n\
+                        Width: %u\r\nChar Height: %u\r\n\
+                        Char Width: %u\r\nTarget Height: %u\r\n\
+                        Scroll Shift: %u\r\n";
+
+    printf(string_buffer, format, fb.info.height, fb.info.width, fb.char_height, fb.char_width, target_height, scroll_shift);
+    serial::write_s(string_buffer, COM_1);
 }
 
 void visual_terminal::tprintf(const char* format, ...) {
@@ -298,14 +228,22 @@ void visual_terminal::write_s(const char* string) {
     update();
 }
 
-void visual_terminal::draw_cursor() {
+void visual_terminal::draw_cursor(int state) {
 
     if (!cursor_active) return;
 
+    
     static uint32_t color = 0x0;
-    color = ~color;
+    if (state < 0) {
+        color = ~color;
+    } else if (state > 0) {
+        color = ~(0);
+    } else {
+        color = 0;
+    }
 
-    cursor.blank(color);
+    //cursor.blank(color);
+    cursor.draw_rect_fill(0, 0, cursor.info.width - 1, cursor.info.height - 1, color);
     cursor.show(x_pos, y_pos);
 }
 

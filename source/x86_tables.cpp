@@ -11,6 +11,28 @@
 
 namespace x86_tables {
 
+    
+
+    struct gdt_table_structure {
+        gdt_segment null;
+        gdt_segment code;
+        gdt_segment data;
+    } gdt_table;
+
+    /*
+    void gdt_init() {
+
+        // Prepare the gdt table
+        set_segment(gdt_table.null, 0, 0, null_access, null_flags);
+        set_segment(gdt_table.code, 0, 0xffffffff, code_access, long_paged);
+        set_segment(gdt_table.data, 0, 0xffffffff, data_access, long_paged);
+
+        uint16_t gdt_size = sizeof(gdt_table) - 1;
+
+        //set_gdt(&gdt_table, gdt_size);
+    }
+    */
+
     /**
      * @brief Get the offset of the target IDT Gate
      * 
@@ -18,7 +40,7 @@ namespace x86_tables {
      * @return void*    Offset of the target gate
      */
     void* get_offset(const idt_gate target) {
-        return (void*)((target.offset_2 << 16) | target.offset_1);
+        return (void*)(((uint64_t)target.offset_3 << 32) | ((uint64_t)target.offset_2 << 16) | (uint64_t)target.offset_1);
     }
 
     /**
@@ -33,32 +55,6 @@ namespace x86_tables {
     }
 
     /**
-     * @brief Set all of the values of a certain gdt segment descriptor
-     * 
-     * @param target    Target segment descriptor
-     * @param limit     Size Limit
-     * @param base      Base address
-     * @param type      Type field
-     * @param flags     Flags field
-     */
-    void set_segment(gdt_segment& target, uint32_t limit, void* base, 
-                     uint8_t type, uint8_t flags) {
-
-        target.limit_1 = (uint16_t)(limit & 0xffff);
-        limit >>= 16;
-        target.limit_2_flags &= (uint8_t)(limit & 0x0f);
-        target.limit_2_flags |= ((flags & 0x0f) << 4);
-
-        target.base_1 = (uint16_t)((uintptr_t)base & 0xffff);
-        base = (void*)((uintptr_t)base >> 16);
-        target.base_2 = (uint8_t)((uintptr_t)base & 0xff);
-        base = (void*)((uintptr_t)base >> 8);
-        target.base_3 = (uint8_t)((uintptr_t)base & 0xff);
-
-        target.type_byte = type;
-    }
-
-    /**
      * @brief Set all of the values of a certain IDT gate descriptor
      * 
      * @param target        IDT Gate to be modified
@@ -69,16 +65,35 @@ namespace x86_tables {
      * @param present       Whether this gate is valid or not
      * @param task_gate     Whether this is a task gate or not
      */
-    void set_gate(idt_gate& target, void* offset, uint16_t gdt_selector, 
-            uint8_t min_privilege, uint8_t type, bool present, bool task_gate) {
+    void set_gate(idt_gate& target, void* offset, gdt_selector selector, 
+            uint8_t min_privilege, uint8_t type, bool present) {
 
-        uint8_t type_top = ((task_gate ? 1 : 0) | ((min_privilege << 1) & 0x6) 
-                            | (present ? 8 : 0)) << 4;
+        uint8_t type_top = (((min_privilege << 1) & 0x6) | (present ? 8 : 0)) << 4;
         target.offset_1 = (uint16_t)((uintptr_t)offset & 0xffff);
         target.offset_2 = (uint16_t)(((uintptr_t)offset >> 16) & 0xffff);
+        target.offset_3 = (uint32_t)(((uintptr_t)offset >> 32) & 0xffffffff);
 
-        target.selector = gdt_selector;
+        target.selector = selector;
 
         target.type_attr = ((type & 0xf) | (type_top & 0xf0));
+    }
+
+    void set_segment(gdt_segment& target, void* base, uint32_t limit,
+            gdt_access_types access, gdt_flags flags) {
+
+        target.base_1 = ((uintptr_t)base & 0xffff);
+        base = (void*)((uintptr_t)base >> 16);
+        target.base_2 = ((uintptr_t)base & 0xff);
+        base = (void*)((uintptr_t)base >> 8);
+        target.base_3 = ((uintptr_t)base & 0xff);
+        base = (void*)((uintptr_t)base >> 8);
+        target.base_4 = ((uintptr_t)base & 0xffffffff);
+
+        target.limit_1 = (limit & 0xffff);
+        limit >>= 16;
+        target.flags_limit_2 = (limit & 0x0f);
+
+        target.flags_limit_2 |= flags;
+        target.access = access;
     }
 }

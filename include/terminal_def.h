@@ -61,11 +61,14 @@ class visual_terminal : public terminal {
         void write_c(const char character);
         void write_s(const char* string);
         void tprintf(const char* format, ...);
-        void draw_cursor();
+        void draw_cursor(int state = -1);
 
         void clear();
 
-        inline void update() {fb.show();}
+        inline void update() {
+            fb.show();
+            draw_cursor(1);
+        }
 };
 
 #endif

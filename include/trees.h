@@ -4,8 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "pintos_std.h"
 #include "bookmark.h"
-#include "memory.h"
+#include "p_memory.h"
 #include "error.h"
 
 namespace trees {
@@ -39,14 +40,15 @@ namespace trees {
             bool size_sorted = false;
 
             mark_tree(bool = false);
-            mark_tree(bookmark*, bool = false, bool = false);
+            mark_tree(bookmark*, bool, bool);
 
             unsigned int get_height();
 
             // Search functions
             bookmark* find(void*);
             bookmark* find(void*, size_t);
-            bookmark* find_suitable(size_t);
+            bookmark* find_size(size_t);
+            bookmark* find_aligned(size_t, size_t, uintptr_t&);
             bookmark* find_containing(void*);
 
             // Simple modifications

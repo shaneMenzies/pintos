@@ -193,8 +193,8 @@ inline void bookmark::remove_any() {
  * 
  * @param size_sorted   Whether the new tree is sorted by size or not
  */
-mark_tree::mark_tree(bool size_sorted) : size_sorted(size_sorted){
-
+mark_tree::mark_tree(bool size_sorted) : size_sorted(size_sorted) {
+    root_mark = 0;
 }
 
 /**
@@ -465,7 +465,7 @@ bookmark* mark_tree::find(void* target_start, size_t size) {
  * @return bookmark*    Pointer to the suitable bookmark, or 0 if no
  *                      suitable mark could be found.
  */
-bookmark* mark_tree::find_suitable(size_t min_size) {
+bookmark* mark_tree::find_size(size_t min_size) {
 
     // Ensure that this tree is sorted by size
     if (!size_sorted) {
@@ -484,6 +484,78 @@ bookmark* mark_tree::find_suitable(size_t min_size) {
         // If this mark would be suitable, save it
         if (current_mark->size >= min_size) {
             last_suitable = current_mark;
+        }
+
+        // Jump to the next mark
+        if ((current_mark->size < min_size) && current_mark->has_right()) {
+            current_mark = current_mark->link[RIGHT];
+        } else if ((current_mark->size > min_size) && current_mark->has_left()) {
+            current_mark = current_mark->link[LEFT];
+        } else {
+            // Either this mark is perfect (in which case it's already been
+            // saved in last_suitable), or there are no more nodes
+            // to search through, so it's time to stop looping
+            break;
+        }
+    }
+
+    // Check if no suitable mark was found, 
+    // if so raise an error before returning
+    if (last_suitable == 0) {
+        raise_error(202, const_cast<char*>("mark_tree::find_suitable(size_t)"));
+    }
+
+    return last_suitable;
+}
+
+/**
+ * @brief Finds the smallest suitable mark which sits on a certain byte 
+ *        alignment.
+ * 
+ * @param min_size      Minimum size of mark to find.
+ * @param alignment     Minimum alignment for the start address of the mark.
+ * @param split_address Address where the mark needs to be split if it needs to 
+ *                      be, otherwise 0.
+ * @return bookmark*    Pointer to a suitable bookmark, or 0 if no
+ *                      suitable mark could be found.
+ */
+bookmark* mark_tree::find_aligned(size_t min_size, size_t alignment, uintptr_t& split_address) {
+
+    // Ensure that this tree is sorted by size
+    if (!size_sorted) {
+        raise_error(203, const_cast<char*>("mark_tree::find_suitable(size_t)"));
+        return 0;
+    }
+
+    // Pointer to store the last suitable mark's address in
+    bookmark* last_suitable = 0;
+    split_address = 0;
+
+    // Reference values to be tested against
+    const size_t alignment_mask = (alignment - 1);
+    const size_t not_mask = ~alignment_mask;
+
+    // Start at the root mark
+    bookmark* current_mark = root_mark;
+
+    while (1) {
+
+        // Check if the mark could be suitable
+        if (current_mark->size >= min_size) {
+
+            // Mark is at least minimum size
+            if (((uintptr_t)current_mark->start & alignment_mask) == 0) {
+                // This mark fits without any splitting
+                last_suitable = current_mark;
+                split_address = 0;
+            } else if (((uintptr_t)current_mark->end & not_mask) > ((uintptr_t)current_mark->start & not_mask)) {
+                // This mark contains an aligned address
+                if (((uintptr_t)current_mark->end - (((uintptr_t)current_mark->start & not_mask) + alignment)) > min_size) {
+                    // Mark can fit size at the aligned address, but needs to be split
+                    last_suitable = current_mark;
+                    split_address = (((uintptr_t)current_mark->start & not_mask) + alignment);
+                }
+            }
         }
 
         // Jump to the next mark
@@ -563,9 +635,15 @@ bookmark* mark_tree::find_containing(void* target_addr) {
         } else {
 
             // Does this mark have a left child?
-            if (current_mark->flags & LEFT_CHILD) {
+            if (current_mark->has_left()) {
                 current_mark = current_mark->link[LEFT];
             } else {
+
+                // Check if it has a right child before doubling back
+                if (current_mark->has_right() && current_mark->link[RIGHT]->start <= target_addr && current_mark->link[RIGHT]->end >= target_addr) {
+                    return current_mark->link[RIGHT];
+                }
+
                 // Reached the end of this path, so go up 1, and to the right child
                 current_mark = current_mark->parent;
                 reverse = true;
@@ -1298,7 +1376,7 @@ void mark_tree::seperate(bookmark* target_mark) {
         // It has children on both sides (longest case)
 
         // Seperate right child
-        mark_tree right (target_mark->link[RIGHT], this->size_sorted, true);
+        mark_tree right(target_mark->link[RIGHT], this->size_sorted, true);
         target_mark->remove_right();
 
         // Move left child into target's place
@@ -1492,7 +1570,7 @@ mark_tree join(mark_tree left, bookmark* joiner, mark_tree right) {
         // These trees can just be joined by creating a new tree,
         // with the joiner as the root node, and the two trees
         // as it's child subtrees.
-        mark_tree new_tree (joiner, right.size_sorted);
+        mark_tree new_tree (joiner, right.size_sorted, true);
         if (left_height > 0) 
             new_tree.root_mark->set_left(left.root_mark);
         if (right_height > 0)
@@ -1535,13 +1613,17 @@ void split_size(mark_tree& left_tree, mark_tree& right_tree,
 
             mark_tree right_whole (target_tree.root_mark->link[RIGHT], 
                                    true, true);
+            if (!target_tree.root_mark->has_right()) {
+                right_whole.root_mark = 0;
+            }
 
             target_tree.root_mark = target_tree.root_mark->link[LEFT];
             split_size(left_tree, right_derivative, target_tree, key);
 
             right_tree = join(right_derivative, derivative_key, right_whole);
         } else {
-            right_tree.insert(target_tree.root_mark);
+            // Entire target tree is on right tree
+            right_tree = target_tree;
         }
 
     } else {
@@ -1551,15 +1633,19 @@ void split_size(mark_tree& left_tree, mark_tree& right_tree,
             mark_tree left_derivative (false);
             bookmark* derivative_key = target_tree.root_mark;
 
-            mark_tree left_whole (target_tree.root_mark->link[RIGHT], 
+            mark_tree left_whole (target_tree.root_mark->link[LEFT], 
                                    true, true);
+            if (!target_tree.root_mark->has_left()) {
+                left_whole.root_mark = 0;
+            }
             
             target_tree.root_mark = target_tree.root_mark->link[RIGHT];
             split_size(left_derivative, right_tree, target_tree, key);
 
             left_tree = join(left_whole, derivative_key, left_derivative);
         } else {
-            left_tree.insert(target_tree.root_mark);
+            // Entire target tree is on left tree
+            left_tree = target_tree;
         }
 
     }
@@ -1595,13 +1681,17 @@ void split_addr(mark_tree& left_tree, mark_tree& right_tree,
 
             mark_tree right_whole (target_tree.root_mark->link[RIGHT], 
                                    false, true);
+            if (!target_tree.root_mark->has_right()) {
+                right_whole.root_mark = 0;
+            }
 
             target_tree.root_mark = target_tree.root_mark->link[LEFT];
             split_addr(left_tree, right_derivative, target_tree, key);
 
             right_tree = join(right_derivative, derivative_key, right_whole);
         } else {
-            right_tree.insert(target_tree.root_mark);
+            // Entire target tree is on right side
+            right_tree = target_tree;
         }
 
     } else {
@@ -1613,13 +1703,17 @@ void split_addr(mark_tree& left_tree, mark_tree& right_tree,
 
             mark_tree left_whole (target_tree.root_mark->link[LEFT], 
                                    false, true);
+            if (!target_tree.root_mark->has_left()) {
+                left_whole.root_mark = 0;
+            }
             
             target_tree.root_mark = target_tree.root_mark->link[RIGHT];
             split_addr(left_derivative, right_tree, target_tree, key);
 
             left_tree = join(left_whole, derivative_key, left_derivative);
         } else {
-            left_tree.insert(target_tree.root_mark);
+            // Entire target tree is on left side
+            left_tree = target_tree;
         }
 
     }
@@ -1679,13 +1773,19 @@ mark_tree tree_union(mark_tree tree_one, mark_tree tree_two) {
     }
 
     // Split tree two into two parts
-    mark_tree left_derivative;
-    mark_tree right_derivative;
+    mark_tree left_derivative (tree_two.size_sorted);
+    mark_tree right_derivative (tree_two.size_sorted);
     split(left_derivative, right_derivative, tree_two, tree_one.root_mark);
 
-    // Get the two sides of tree one
+    // Get the two sides of tree one (if they exist)
     mark_tree one_left (tree_one.root_mark->link[LEFT], tree_one.size_sorted, true);
     mark_tree one_right (tree_one.root_mark->link[RIGHT], tree_one.size_sorted, true);
+    if (!tree_one.root_mark->has_left()) {
+        one_left.root_mark = 0;
+    }
+    if (!tree_one.root_mark->has_right()) {
+        one_right.root_mark = 0;
+    }
 
     // Combine each pair of sides with eachother
     left_derivative = tree_union(one_left, left_derivative);

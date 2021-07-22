@@ -3,7 +3,10 @@
 
 #include <stdint.h>
 
-enum IO_ports : uint8_t{
+#include "asm_functions.h"
+#include "acpi.h"
+
+enum IO_ports : uint16_t{
     PIC_1 = 0x20,
     PIC_1_CMD = (PIC_1),
     PIC_1_DATA = (PIC_1 + 1),
@@ -12,6 +15,19 @@ enum IO_ports : uint8_t{
     PIC_2_CMD = (PIC_2),
     PIC_2_DATA = (PIC_2 + 1),
 
+    KB_DATA = 0x60,
+    KB_CMD = 0x64,
+
+    PIT_CH0 = 0x40,
+    PIT_CH1 = 0x41,
+    PIT_CH2 = 0x42,
+    PIT_CMD = 0x43,
+
+    COM_1 = 0x3f8,
+    COM_2 = 0x2f8,
+};
+
+enum PIC_commands : uint8_t {
     OFFSET_1 = 0x20,
     OFFSET_2 = (OFFSET_1 + 8),
     OFFSET_END = (OFFSET_2 + 8),
@@ -23,35 +39,90 @@ enum IO_ports : uint8_t{
     CODE_8086 = 0x1,
 
     CODE_EOI = 0x20,
-
-    KB_DATA = 0x60,
-    KB_CMD = 0x64,
-
-    INT_GATE_32 = 0x0E,
-    INT_GATE_16 = 0x06,
-
-    TRAP_GATE_32 = 0xf,
-    TRAP_GATE_16 = 0x7,
-
-    TASK_GATE = 0x05,
-
-    PIT_CH0 = 0x40,
-    PIT_CH1 = 0x41,
-    PIT_CH2 = 0x42,
-    PIT_CMD = 0x43,
 };
 
-extern "C" {
-    extern void out_byte(unsigned char byte, uint16_t port);
-    extern unsigned char in_byte(uint16_t port);
+union io_apic_redirection_entry {
+    uint64_t raw_data;
+    struct {
+        uint64_t int_vector : 8;
+        uint64_t delivery_mode : 3;
+        uint64_t dest_mode : 1;
+        uint64_t apic_busy : 1;
+        uint64_t polarity : 1;
+        uint64_t int_recieved : 1;
+        uint64_t trigger_mode : 1;
+        uint64_t masked : 1;
+        uint64_t reserved : 39;
+        uint64_t destination : 8;
+    } data __attribute__ ((packed));
 
-    extern void out_word(uint16_t word, uint16_t port);
-    extern uint16_t in_word(uint16_t port);
+    io_apic_redirection_entry(uint64_t value) : raw_data(value) {}
+};
 
-    extern void out_dword(uint32_t dword, uint16_t port);
-    extern uint32_t in_dword(uint16_t port);
+struct io_apic {
+    uint32_t reg_select;
+    uint32_t unused[3];
+    uint32_t reg_data;
 
-    extern void io_wait();
+    void write_32(uint32_t index, uint32_t data) volatile {
+        reg_select = index;
+        reg_data = data;
+    };
+    uint32_t read_32(uint32_t index) volatile {
+        reg_select = index;
+        return reg_data;
+    };
+
+    void write_64(uint32_t index, uint64_t data) volatile {
+        reg_select = index;
+        reg_data = (0U | (data & 0xffffffff));
+        reg_select = (index + 1);
+        reg_data = (0U | (data >> 32));
+    };
+    uint64_t read_64(uint32_t index) volatile {
+        reg_select = index;
+        uint64_t value = reg_data;
+        reg_select = (index + 1);
+        value |= ((reg_data | 0ULL) << 32);
+        return value;
+    };
+
+    void set_interrupt(uint8_t apic_int, io_apic_redirection_entry value) {
+        write_64(((apic_int * 2) + 0x10), value.raw_data);
+    };
+    io_apic_redirection_entry get_interrupt(uint8_t apic_int) {
+        return (io_apic_redirection_entry)(read_64((apic_int * 2) + 0x10));
+    };
+
+    void set_vector(uint8_t apic_int, uint8_t new_vector) {
+        write_32(((apic_int * 2) + 0x10), 
+            ((read_32((apic_int * 2) + 0x10) & ~(0xff)) | new_vector));
+    };
+    uint8_t get_vector(uint8_t apic_int) {
+        return (read_32((apic_int * 2) + 0x10) & 0xff);
+    };
+
+    void set_masked(uint8_t apic_int, bool value) {
+        write_32(((apic_int * 2) + 0x10), 
+            ((read_32((apic_int * 2) + 0x10) & ~(1 << 16)) | (value ? (1 << 16) : 0)));
+    };
+
+} __attribute__ ((packed));
+
+struct io_apic_info {
+    io_apic* address;
+    uint8_t num_ints;
+    uint8_t start;
+    uint8_t end;
+    uint8_t id;
+
+    void fill(acpi::madt_io_apic* source);
+};
+
+namespace serial {
+
+    void write_c(const char data, uint16_t port);
+    void write_s(const char* string, uint16_t port);
 }
 
 #endif

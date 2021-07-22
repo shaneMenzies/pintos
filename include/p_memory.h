@@ -1,23 +1,26 @@
-#ifndef MEMORY_H
-#define MEMORY_H
+#ifndef P_MEMORY_H
+#define P_MEMORY_H
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include "multiboot.h"
 #include "bookmark.h"
 #include "trees.h"
-#include "multiboot.h"
 #include "error.h"
+#include "paging.h"
 
 extern void* max_phys_address;
 
 trees::bookmark* mkalloc();
 
-trees::bookmark mmap_to_mark(uint32_t* mmap_addr);
+trees::bookmark mmap_to_mark(multiboot_mmap_entry* mmap);
 
-void memory_init(struct mb_info* mb_addr);
+void memory_init(multiboot_boot_info* mb_info);
 
 void* malloc(size_t size);
+
+void* balloc(size_t size, size_t alignment);
 
 void* talloc(void* target_address, size_t size);
 

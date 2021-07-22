@@ -10,11 +10,11 @@
 
 #include "display.h"
 
-#include "memory.h"
-#include "multiboot.h"
+#include "p_memory.h"
 #include "error.h"
 #include "libk.h"
 #include "kernel.h"
+#include "paging.h"
 
 bool fb_initialized = false;
 
@@ -23,56 +23,40 @@ struct fb_info fb;
 /**
  * @brief Sets up the framebuffer info based on what multiboot provides
  * 
- * @param mb_addr   Pointer to the multiboot info structure
+ * @param mb_info   Pointer to a multiboot info structure
  */
-void framebuffer_init(struct mb_info* mb_addr) {
-    // Check to make sure that multiboot info has been processed
-    if (mb_addr->flags & FRAMEBUFFER_FLAG) {
-        fb_initialized = true;
+void framebuffer_init(multiboot_boot_info* mb_info) {
 
-        fb.address = (void*)((unsigned int)(mb_addr->framebuffer_addr & POINTER_MASK));
-        fb.pitch = mb_addr->framebuffer_pitch;
-        fb.width = mb_addr->framebuffer_width;
-        fb.height = mb_addr->framebuffer_height;
-        fb.depth = mb_addr->framebuffer_bpp;
-        fb.pixel_size = mb_addr->framebuffer_pitch / mb_addr->framebuffer_width;
-        fb.size = (size_t)(fb.pitch * fb.height);
-        fb.end = (void*)((uintptr_t)fb.address + fb.size);
+    fb_initialized = true;
 
-        // Set the correct info into the framebuffer info structure
-        if (mb_addr->framebuffer_type == 0) {
-            fb.palette_color = true;
+    fb.address = (void*)((mb_info->framebuffer_tag->common.framebuffer_addr));
+    fb.pitch = mb_info->framebuffer_tag->common.framebuffer_pitch;
+    fb.width = mb_info->framebuffer_tag->common.framebuffer_width;
+    fb.height = mb_info->framebuffer_tag->common.framebuffer_height;
+    fb.depth = mb_info->framebuffer_tag->common.framebuffer_bpp;
+    fb.pixel_size = mb_info->framebuffer_tag->common.framebuffer_pitch / mb_info->framebuffer_tag->common.framebuffer_width;
+    fb.size = (size_t)(fb.pitch * fb.height);
+    fb.end = (void*)((uintptr_t)fb.address + fb.size);
 
-            for (int i = 0; i < 4; i++) {
-                fb.palette_addr |= (uint32_t)(mb_addr->color_info[i] << (8*i));
-            }
-            fb.palette_num = (uint16_t)((mb_addr->color_info[4] << 8) 
-                                        | mb_addr->color_info[5]);
-            fb.ega_text = false;
-            fb.direct_color = false;
-        } else if (mb_addr->framebuffer_type == 1) {
-            fb.direct_color = true;
+    // Set the correct info into the framebuffer info structure
+    if (mb_info->framebuffer_tag->common.framebuffer_type == 1) {
+        fb.direct_color = true;
 
-            fb.red_pos = mb_addr->color_info[0];
-            fb.red_mask = mb_addr->color_info[1];
-            fb.green_pos = mb_addr->color_info[2];
-            fb.green_mask = mb_addr->color_info[3];
-            fb.blue_pos = mb_addr->color_info[4];
-            fb.blue_mask = mb_addr->color_info[5];
+        fb.red_shift = mb_info->framebuffer_tag->framebuffer_red_field_position;
+        fb.red_mask = mb_info->framebuffer_tag->framebuffer_red_mask_size;
+        fb.green_shift = mb_info->framebuffer_tag->framebuffer_green_field_position;
+        fb.green_mask = mb_info->framebuffer_tag->framebuffer_green_mask_size;
+        fb.blue_shift = mb_info->framebuffer_tag->framebuffer_blue_field_position;
+        fb.blue_mask = mb_info->framebuffer_tag->framebuffer_blue_mask_size;
 
-            fb.ega_text = false;
-            fb.palette_color = false;
-        } else {
-            fb.ega_text = true;
-            fb.direct_color = false;
-            fb.palette_color = false;
-        }
-
+        fb.ega_text = false;
     } else {
         fb.ega_text = true;
         fb.direct_color = false;
-        fb.palette_color = false;
     }
+
+    // Identity map framebuffer area
+    paging::identity_map_region((uintptr_t)fb.address, fb.size);
 }
 
 /**
@@ -88,10 +72,9 @@ inline uint8_t ega_attributes(uint8_t fg_color, uint8_t bg_color) {
     return (uint8_t)(((bg_color & 0b1111) << 4) | (fg_color & 0b1111));
 }
 
-v_fb::v_fb() {
+v_fb::v_fb()  : info(fb) {
 
-    // By default copy from the real framebuffer
-    info = fb;
+    // Most info has been copied over from the read framebuffer
     
     // Allocate space for new virtual framebuffer
     info.address = malloc(info.size);
@@ -110,10 +93,9 @@ v_fb::v_fb() {
     blank(0);
 }
 
-v_fb::v_fb(uint32_t width, uint32_t height) {
+v_fb::v_fb(uint32_t width, uint32_t height) : info(fb) {
 
-    // Copy most info from the real framebuffer
-    info = fb;
+    // Most info has been copied over from the read framebuffer
 
     // Change certain properties to the given parameters
     info.width = width;
@@ -145,7 +127,7 @@ v_fb::~v_fb() {
     free(info.address);
 }
 
-void v_fb::set_font(Font* new_font) {
+void v_fb::set_font(const Font* new_font) {
 
     font = new_font;
 
@@ -160,7 +142,7 @@ void v_fb::set_font(Font* new_font) {
     char_pitch = char_height * info.pitch;
 }
 
-Font* v_fb::get_font() {
+const Font* v_fb::get_font() {
     return font;
 }
 
@@ -270,7 +252,7 @@ inline void* v_fb::get_target_address(uint32_t x, uint32_t y) {
         return 0;
     }
 
-    return (void*)((uint32_t)info.address + (y * info.pitch) + (x * info.pixel_size));
+    return (void*)((uintptr_t)info.address + (y * info.pitch) + (x * info.pixel_size));
 }
 
 /**
@@ -522,7 +504,7 @@ void v_fb::draw_rect_fill(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1, ui
  */
 void v_fb::fb_putc(uint32_t& x, uint32_t& y, const char target_char, uint32_t fg_color, uint32_t bg_color) {
 
-    if (target_char == 0 || target_char > font->char_count) {
+    if (target_char == 0 || (unsigned char)target_char > font->char_count) {
         return;
     }
 
@@ -628,12 +610,12 @@ void v_fb::fb_puts(uint32_t& x, uint32_t& y, const char* string, uint32_t fg_col
  * 
  * @param color     Color to fill screen with
  */
-void v_fb::fb_blank(uint32_t color) {
+void v_fb::fb_blank(uint8_t color) {
 
     // Turn the color into a fill pattern 
-    unsigned int fill = 0;
-    for (size_t bits = 0; bits < sizeof(unsigned int); bits += info.depth) {
-        fill |= (color << bits);
+    unsigned long int fill = 0;
+    for (size_t bytes = 0; bytes < sizeof(unsigned long int); bytes += 8) {
+        fill |= (color << bytes);
     }
 
     // Fill the framebuffer portion of memory
@@ -689,7 +671,7 @@ void v_fb::show(uint32_t x, uint32_t y) {
     }
 }
 
-void v_fb::blank(uint32_t color) {
+void v_fb::blank(uint8_t color) {
     fb_blank(color);
 }
 

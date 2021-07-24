@@ -4,6 +4,47 @@
 #include <stddef.h>
 #include <stdarg.h>
 
+template <class T>
+struct pattern_entry {
+
+    pattern_entry<T>* next_entry = 0;
+    int length;
+    const T* data;
+
+    T operator[](size_t index) {return data[index];};
+    friend bool operator==(pattern_entry& lhs, pattern_entry& rhs) {
+        if (lhs.length != rhs.length) {
+            return false;
+        } else {
+            for (int i = 0; i < lhs.length; i++) {
+                if (lhs[i] != rhs[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    friend bool operator!=(pattern_entry& lhs, pattern_entry& rhs) {return !(lhs == rhs);}
+
+    friend bool operator<(pattern_entry& lhs, pattern_entry& rhs) {
+        bool left_short = lhs.length < rhs.length;
+        int min_length = (left_short) ? lhs.length : rhs.length;
+
+        for (int i = 0; i < min_length; i++) {
+            if (lhs[i] < rhs[i]) {
+                return true;
+            } else if (lhs[i] > rhs[i]) {
+                return false;
+            }
+        }
+
+        return left_short;
+    }
+    friend bool operator> (pattern_entry& lhs, pattern_entry& rhs){ return rhs < lhs; }
+    friend bool operator<=(pattern_entry& lhs, pattern_entry& rhs){ return !(lhs > rhs); }
+    friend bool operator>=(pattern_entry& lhs, pattern_entry& rhs){ return !(lhs < rhs); }
+};
+
 static const unsigned char bit_reverse_table[] = 
 {
   0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0, 
@@ -49,8 +90,111 @@ unsigned int reverse_bits(unsigned int target, size_t size);
 
 bool str_cmp(const char* first, const char* second);
 
+size_t str_size(const char* string);
+
+void str_copy(char* destination, const char* source);
+
+pattern_entry<char> cstring_to_pattern(const char* string);
+
 void printf(char* target_buffer, const char* format, ...);
 
 void vprintf(char* target_buffer, const char* format, va_list args);
+
+namespace sorts {
+
+    template <class T>
+    int binary_match(T* array, unsigned int num_items, T target) {
+
+        unsigned int index = (num_items / 2);
+        int change = index / 2;
+
+        while(1) {
+
+            if (array[index] == target) {
+                return index;
+            } else {
+                if (target < array[index]) {
+                    index -= change;
+                } else {
+                    index += change;
+                }
+
+                if (index > num_items) {
+                    return -1;
+                }
+
+                if (change > 1) {
+                    change /= 2;
+                }
+            }
+        }
+    }
+
+    template <class T>
+    int binary_match_pointer(T** array, unsigned int num_items, T target) {
+
+        unsigned int index = (num_items / 2);
+        unsigned int change = index / 2;
+        if (change < 1) {change = 1;}
+
+        while(1) {
+
+            if (*array[index] == target) {
+                return index;
+            } else {
+                if (target < *array[index]) {
+                    index -= change;
+                } else {
+                    index += change;
+                }
+
+                if (index > num_items || change < 1) {
+                    return -1;
+                }
+
+                change /= 2;
+            }
+        }
+    }
+
+    template <class T>
+    void insertion_sort(T array[], int num_items) {
+
+        int index = 1;
+
+        while (index < num_items) {
+            T current_item = array[index];
+            int correct_pos = index - 1;
+
+            while (correct_pos >= 0 && array[correct_pos] > current_item) {
+                array[correct_pos + 1] = array[correct_pos];
+                correct_pos--;
+            }
+
+            array[correct_pos + 1] = current_item;
+            index++;
+        }
+    }
+
+    template <class T>
+    void insertion_sort_pointer(T* array[], int num_items) {
+
+        int index = 1;
+
+        while (index < num_items) {
+            T* current_item = array[index];
+            int correct_pos = index - 1;
+
+            while (correct_pos >= 0 && *(array[correct_pos]) > *(current_item)) {
+                array[correct_pos + 1] = array[correct_pos];
+                correct_pos--;
+            }
+
+            array[correct_pos + 1] = current_item;
+            index++;
+        }
+    }
+
+}
 
 #endif

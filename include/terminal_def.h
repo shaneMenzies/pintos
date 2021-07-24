@@ -55,8 +55,8 @@ class visual_terminal : public terminal {
                         double target_fill = 0.9f);
 
         inline void send_key(char character) {
-            handler.run_action(character);
             write_c(character);
+            handler.run_action(character);
         }
         void write_c(const char character);
         void write_s(const char* string);

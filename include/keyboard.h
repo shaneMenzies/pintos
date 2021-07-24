@@ -95,10 +95,14 @@ namespace keyboard {
 
             inline void buffer_write_c(char target) {
 
-                *buffer_next = target;
-                buffer_next++;
-                if (buffer_next > buffer_end) buffer_next = buffer_start;
-                *buffer_next = '\0';
+                if (target == '\b') {
+                    buffer_next = (char*)((uintptr_t)buffer_next - 1);
+                } else {
+                    *buffer_next = target;
+                    buffer_next++;
+                    if (buffer_next > buffer_end) buffer_next = (buffer_start + 8);
+                    *buffer_next = '\0';
+                }
 
                 if ((uintptr_t)on_buffer_write != 0) {
                     on_buffer_write(target);

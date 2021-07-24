@@ -110,6 +110,55 @@ bool str_cmp(const char* first, const char* second) {
     }
 }
 
+/**
+ * @brief Gets the size of a c-string
+ * 
+ * @param string    String to get the size of (null-terminated)
+ * @return size_t   Total size of the string (includes null character)
+ */
+size_t str_size(const char* string) {
+
+    int i = 0;
+    while (1) {
+        if (string[i++] == '\0') {
+            return i;
+        }
+    }
+}
+
+void str_copy(char* destination, const char* source) {
+
+    int i = 0;
+    while (1) {
+        destination[i] = source[i];
+        if (source[i] == '\0') {
+            return;
+        } else {
+            i++;
+        }
+    }
+}
+
+pattern_entry<char> cstring_to_pattern(const char* string) {
+
+    int length = 0;
+    while (1) {
+
+        if (string[length] == '\0') {
+            length++;
+            break;
+        }
+
+        length++;
+    }
+
+    pattern_entry<char> pattern;
+    pattern.length = length;
+    pattern.data = string;
+
+    return pattern;
+}
+
 void printf(char* target_buffer, const char* format, ...) {
 
     // Start the optional arguments

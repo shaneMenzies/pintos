@@ -203,8 +203,6 @@ mark_tree::mark_tree(bool size_sorted) : size_sorted(size_sorted) {
  * @param init_mark     Pointer to the bookmark to start as the root of the tree
  */
 mark_tree::mark_tree(bookmark* init_mark, bool size_sorted, bool in_form) : root_mark(init_mark) {
-    root_mark->parent = NULL;
-
     if (size_sorted) {
         this->size_sorted = true;
     }
@@ -469,7 +467,7 @@ bookmark* mark_tree::find_size(size_t min_size) {
 
     // Ensure that this tree is sorted by size
     if (!size_sorted) {
-        raise_error(203, const_cast<char*>("mark_tree::find_suitable(size_t)"));
+        raise_error(203, const_cast<char*>("mark_tree::find_size(size_t)"));
         return 0;
     }
 
@@ -502,7 +500,7 @@ bookmark* mark_tree::find_size(size_t min_size) {
     // Check if no suitable mark was found, 
     // if so raise an error before returning
     if (last_suitable == 0) {
-        raise_error(202, const_cast<char*>("mark_tree::find_suitable(size_t)"));
+        raise_error(202, const_cast<char*>("mark_tree::find_size(size_t)"));
     }
 
     return last_suitable;
@@ -523,7 +521,7 @@ bookmark* mark_tree::find_aligned(size_t min_size, size_t alignment, uintptr_t& 
 
     // Ensure that this tree is sorted by size
     if (!size_sorted) {
-        raise_error(203, const_cast<char*>("mark_tree::find_suitable(size_t)"));
+        raise_error(203, const_cast<char*>("mark_tree::find_aligned(size_t min_size, size_t alignment, uintptr_t& split_address)"));
         return 0;
     }
 
@@ -574,7 +572,7 @@ bookmark* mark_tree::find_aligned(size_t min_size, size_t alignment, uintptr_t& 
     // Check if no suitable mark was found, 
     // if so raise an error before returning
     if (last_suitable == 0) {
-        raise_error(202, const_cast<char*>("mark_tree::find_suitable(size_t)"));
+        raise_error(202, const_cast<char*>("mark_tree::find_aligned(size_t min_size, size_t alignment, uintptr_t& split_address)"));
     }
 
     return last_suitable;

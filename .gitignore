@@ -61,3 +61,7 @@ html/
 latex/
 testing/
 qemu_dir/
+BOOTX64.EFI
+pintos_boot.bin
+pintos_kernel.bin
+uefi.img

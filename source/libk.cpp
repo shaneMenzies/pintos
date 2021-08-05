@@ -11,6 +11,33 @@
 #include "p_memory.h"
 
 /**
+ * @brief Get the vendor of the system
+ * 
+ * @return sytem_vendor Detected vendor 
+ */
+system_vendor get_vendor() {
+
+    const uint32_t intel_string[3] = {
+        0x756e6547, 0x49656e69, 0x6c65746e
+    };
+    const uint32_t amd_string[3] = {
+        0x68747541, 0x69746e65, 0x444d4163
+    };
+
+    uint32_t eax, ebx, ecx, edx;
+    eax = 0;
+    __cpuid(0, eax, ebx, ecx, edx);
+
+    if (ebx == intel_string[0] && edx == intel_string[1] && ecx == intel_string[2]) {
+        return intel;
+    } else if (ebx == amd_string[0] && edx == amd_string[1] && ecx == amd_string[2]) {
+        return amd;
+    } else {
+        return other;
+    }
+}
+
+/**
  * @brief Copies the contents of one area of memory to another
  * 
  * @param dest_ptr  Pointer to the start of the destination to be copied to

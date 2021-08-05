@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 template <class T>
 struct pattern_entry {
@@ -82,11 +83,51 @@ inline bool is_signed() {
     return (T(-1) < T(0));
 }
 
+enum system_vendor : int {
+    other = -1,
+    amd = 0,
+    intel = 1,
+};
+
+system_vendor get_vendor();
+
 void* memcpy(void* dest_ptr, const void* src_ptr, size_t size);
 
 void fill_mem(void* dest_ptr, size_t size, unsigned long int fill_data);
 
 unsigned int reverse_bits(unsigned int target, size_t size);
+
+inline uint64_t round_next_binary_power(uint64_t input) {
+    input--;
+    input |= input >> 1;
+    input |= input >> 2;
+    input |= input >> 4;
+    input |= input >> 8;
+    input |= input >> 16;
+    input |= input >> 32;
+    input++;
+    return input;
+};
+
+inline uint32_t round_next_binary_power(uint32_t input) {
+    input--;
+    input |= input >> 1;
+    input |= input >> 2;
+    input |= input >> 4;
+    input |= input >> 8;
+    input |= input >> 16;
+    input++;
+    return input;
+};
+
+inline uint8_t round_next_binary_power(uint8_t input) {
+    input--;
+    input |= input >> 1;
+    input |= input >> 2;
+    input |= input >> 4;
+    input++;
+    return input;
+};
 
 bool str_cmp(const char* first, const char* second);
 
@@ -105,29 +146,30 @@ namespace sorts {
     template <class T>
     int binary_match(T* array, unsigned int num_items, T target) {
 
-        unsigned int index = (num_items / 2);
-        int change = index / 2;
-
-        while(1) {
-
-            if (array[index] == target) {
-                return index;
+        if (num_items > 0) {
+            num_items--;
+            if (num_items == 0 && array[0] == target) {
+                return 0;
             } else {
-                if (target < array[index]) {
-                    index -= change;
-                } else {
-                    index += change;
-                }
+                int left = 0;
+                int right = num_items;
+                int middle;
+                while(left <= right) {
 
-                if (index > num_items) {
-                    return -1;
-                }
+                    middle = (left + right) / 2;
 
-                if (change > 1) {
-                    change /= 2;
+                    T current_value = array[middle];
+                    if (current_value < target) {
+                        left = middle + 1;
+                    } else if (current_value > target) {
+                        right = middle - 1;
+                    } else {
+                        return middle;
+                    }
                 }
             }
         }
+        return -1;
     }
 
     template <class T>

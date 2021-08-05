@@ -54,8 +54,8 @@ namespace interrupts {
 
 
         // Get info on any IOAPICS
-        acpi::madt_entry** entries = (acpi::madt_entry**)malloc(sizeof(void*) * 256);
-        io_apic_count = acpi::get_madt_entries(madt, acpi::madt_entry_type::io_apic, entries, 256);
+        acpi::entry_header** entries = (acpi::entry_header**)malloc(sizeof(void*) * acpi::count_entries(madt, acpi::madt_entry_type::io_apic));
+        io_apic_count = acpi::get_entries(madt, acpi::madt_entry_type::io_apic, entries, 256);
         if (io_apic_count) {
             // Process the info on the io_apics themselves, and mask all interrupts
             for (int i = 0; i < io_apic_count; i++) {
@@ -72,7 +72,7 @@ namespace interrupts {
             }
 
             // Get any source overrides
-            int entry_count = acpi::get_madt_entries(madt, acpi::madt_entry_type::io_apic_src_override, entries, 256);
+            int entry_count = acpi::get_entries(madt, acpi::madt_entry_type::io_apic_src_override, entries, 256);
             for (int i = 0; i < entry_count; i++) {
                 uint8_t irq_source = ((acpi::madt_io_apic_src_override*)entries[i])->irq_src;
                 uint8_t int_source = ((acpi::madt_io_apic_src_override*)entries[i])->global_int & 0xff;

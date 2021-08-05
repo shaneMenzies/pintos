@@ -1497,7 +1497,7 @@ mark_tree join_right(mark_tree left, unsigned int left_height, bookmark* joiner,
     bookmark* insertion_point = left.root_mark;
 
     // Determine the correct insertion point
-    while (left_height > right_height) {
+    while (left_height > right_height && insertion_point->has_right()) {
         insertion_point = insertion_point->link[RIGHT];
         left_height--;
     }
@@ -1528,7 +1528,7 @@ mark_tree join_left(mark_tree left, unsigned int left_height, bookmark* joiner,
     bookmark* insertion_point = right.root_mark;
 
     // Determine the correct insertion point
-    while (left_height < right_height) {
+    while (left_height < right_height && insertion_point->has_left()) {
         insertion_point = insertion_point->link[LEFT];
         right_height--;
     }
@@ -1556,6 +1556,19 @@ mark_tree join_left(mark_tree left, unsigned int left_height, bookmark* joiner,
  */
 mark_tree join(mark_tree left, bookmark* joiner, mark_tree right) {
 
+    // Clean joiner mark
+    joiner->remove_any();
+    joiner->balance = 0;
+
+    // Check if either tree is empty
+    if (left.root_mark == 0) {
+        right.insert(joiner);
+        return right;
+    } else if (right.root_mark == 0) {
+        left.insert(joiner);
+        return left;
+    }
+
     unsigned int left_height = left.get_height();
     unsigned int right_height = right.get_height();
 
@@ -1569,10 +1582,15 @@ mark_tree join(mark_tree left, bookmark* joiner, mark_tree right) {
         // with the joiner as the root node, and the two trees
         // as it's child subtrees.
         mark_tree new_tree (joiner, right.size_sorted, true);
-        if (left_height > 0) 
+        if (left_height > 0)
             new_tree.root_mark->set_left(left.root_mark);
+        else 
+            new_tree.root_mark->remove_left();
+
         if (right_height > 0)
             new_tree.root_mark->set_right(right.root_mark);
+        else
+            new_tree.root_mark->remove_right();
 
         // Fix the balance of the joiner
         joiner->balance = (right_height - left_height);
@@ -1606,7 +1624,7 @@ void split_size(mark_tree& left_tree, mark_tree& right_tree,
 
         // Go down the left side (if it exists)
         if (target_tree.root_mark->has_left()) {
-            mark_tree right_derivative (false);
+            mark_tree right_derivative (true);
             bookmark* derivative_key = target_tree.root_mark;
 
             mark_tree right_whole (target_tree.root_mark->link[RIGHT], 
@@ -1628,7 +1646,7 @@ void split_size(mark_tree& left_tree, mark_tree& right_tree,
 
         // Go down the right side (if it exists)
         if (target_tree.root_mark->has_right()) {
-            mark_tree left_derivative (false);
+            mark_tree left_derivative (true);
             bookmark* derivative_key = target_tree.root_mark;
 
             mark_tree left_whole (target_tree.root_mark->link[LEFT], 

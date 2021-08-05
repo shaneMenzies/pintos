@@ -46,9 +46,6 @@ namespace interrupts {
         
         disable_interrupts();
         while(1) {
-            int error = error_code_addr->code;
-            if (error == 0)
-                break;
         }
         enable_interrupts();
 
@@ -148,9 +145,6 @@ namespace interrupts {
         
         disable_interrupts();
         while(1) {
-            int error = error_code_addr->code;
-            if (error == 0)
-                break;
         }
         enable_interrupts();
         send_EOI();
@@ -167,9 +161,6 @@ namespace interrupts {
         
         disable_interrupts();
         while(1) {
-            int error = error_code_addr->code;
-            if (error == 0)
-                break;
         }
         enable_interrupts();
         send_EOI();
@@ -186,9 +177,6 @@ namespace interrupts {
         
         disable_interrupts();
         while(1) {
-            int error = error_code_addr->code;
-            if (error == 0)
-                break;
         }
         enable_interrupts();
 
@@ -224,7 +212,6 @@ namespace interrupts {
         }
 
         send_EOI(IRQ_BASE + 1);
-
     }
 
     __attribute__((interrupt)) void irq_2(interrupt_frame* frame) {

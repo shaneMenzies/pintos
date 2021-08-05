@@ -100,7 +100,7 @@ void late_init(multiboot_boot_info* mb_info) {
     boot_terminal = new visual_terminal();
     set_error_terminal(new visual_terminal());
     active_terminal = boot_terminal;
-    active_terminal->write_s(const_cast<char*>("PintOS Booting..."));
+    active_terminal->write_s(const_cast<char*>("PintOS Booting...\n"));
     active_terminal->update();
 
     // Find the ACPI RSDP
@@ -108,6 +108,9 @@ void late_init(multiboot_boot_info* mb_info) {
 
     // Set default interrupt handlers
     interrupts::interrupts_init((acpi::madt_table*)acpi::get_table(rsdp, acpi::table_signature::MADT));
+
+    // Detect CPU Topology
+    threading::detect_topology((acpi::madt_table*)acpi::get_table(rsdp, acpi::table_signature::MADT), (acpi::srat_table*)acpi::get_table(rsdp, acpi::table_signature::SRAT));
 
     // Can now enable interrupts
     enable_interrupts();

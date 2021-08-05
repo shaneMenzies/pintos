@@ -64,21 +64,27 @@ old_rsdp* find_rsdp(multiboot_boot_info* mb_info) {
         // XSDT
         xsdt* xsdt = ((modern_rsdp*)rsdp)->xsdt_addr;
         paging::identity_map_page((uintptr_t)xsdt);
-        paging::identity_map_region((uintptr_t)(xsdt), (size_t)(xsdt->header.length));
-        int num_entries = (xsdt->header.length - sizeof(xsdt->header)) / 8;
-        for (int i = 0; i < num_entries; i++) {
-            paging::identity_map_page((uintptr_t)(xsdt->tables[i]));
-            paging::identity_map_region((uintptr_t)(xsdt->tables[i]), (size_t)(xsdt->tables[i]->length));
+        paging::identity_map_region((uintptr_t)(xsdt), (size_t)(xsdt->length));
+        active_terminal->tprintf("ACPI Master Table Found\nSignature: %c%c%c%c\nLength: %x\nACPI Revision: %u\nOEM ID: %c%c%c%c%c%c\n", xsdt->c_signature[0], xsdt->c_signature[1], xsdt->c_signature[2], xsdt->c_signature[3],
+             xsdt->length, xsdt->revision, xsdt->oem_id[0], xsdt->oem_id[1], xsdt->oem_id[2], xsdt->oem_id[3], xsdt->oem_id[4], xsdt->oem_id[5]);
+        if (xsdt->valid_checksum()) {
+            int num_entries = (xsdt->length - sizeof(table_header)) / 8;
+            for (int i = 0; i < num_entries; i++) {
+                paging::identity_map_page((uintptr_t)(xsdt->tables[i]));
+                paging::identity_map_region((uintptr_t)(xsdt->tables[i]), (size_t)(xsdt->tables[i]->length));
+            }
         }
     } else {
         // RSDT
         rsdt* rsdt = rsdp->get_rsdt();
         paging::identity_map_page((uintptr_t)rsdt);
-        paging::identity_map_region((uintptr_t)(rsdt), (size_t)(rsdt->header.length));
-        int num_entries = (rsdt->header.length - sizeof(rsdt->header)) / 4;
-        for (int i = 0; i < num_entries; i++) {
-            paging::identity_map_page((uintptr_t)(rsdt->tables[i] | 0ULL));
-            paging::identity_map_region((uintptr_t)(rsdt->tables[i] | 0ULL), (size_t)(((table_header*)(rsdt->tables[i] | 0ULL))->length));
+        paging::identity_map_region((uintptr_t)(rsdt), (size_t)(rsdt->length));
+        if (rsdt->valid_checksum()) {
+            int num_entries = (rsdt->length - sizeof(table_header)) / 4;
+            for (int i = 0; i < num_entries; i++) {
+                paging::identity_map_page((uintptr_t)(rsdt->tables[i] | 0ULL));
+                paging::identity_map_region((uintptr_t)(rsdt->tables[i] | 0ULL), (size_t)(((table_header*)(rsdt->tables[i] | 0ULL))->length));
+            }
         }
     }
     }
@@ -100,7 +106,7 @@ table_header* get_table(old_rsdp* rsdp, table_signature target) {
     if (rsdp->is_modern()) {
         // XSDT
         xsdt* xsdt = ((modern_rsdp*)rsdp)->xsdt_addr;
-        int num_entries = (xsdt->header.length - sizeof(xsdt->header)) / 8;
+        int num_entries = (xsdt->length - sizeof(table_header)) / 8;
         for (int i = 0; i < num_entries; i++) {
             if (xsdt->tables[i]->u_signature == target) {
                 
@@ -110,7 +116,7 @@ table_header* get_table(old_rsdp* rsdp, table_signature target) {
     } else {
         // RSDT
         rsdt* rsdt = rsdp->get_rsdt();
-        int num_entries = (rsdt->header.length - sizeof(rsdt->header)) / 4;
+        int num_entries = (rsdt->length - sizeof(table_header)) / 4;
         for (int i = 0; i < num_entries; i++) {
             if (((table_header*)(rsdt->tables[i] | 0ULL))->u_signature == target) {
                 return (table_header*)(rsdt->tables[i] | 0ULL);
@@ -123,31 +129,56 @@ table_header* get_table(old_rsdp* rsdp, table_signature target) {
 }
 
 /**
- * @brief Get the corresponding madt entries of a certain type
+ * @brief Get the entries of a certain type from a target table
  * 
- * @param madt      Pointer to the madt table
- * @param target    Target entry type
- * @param buffer    Buffer array of madt_entry pointers to be filled
- * @return int      Number of corresponding entries found
+ * @param target_table  ACPI Table to search 
+ * @param target_type   Type of entry to return
+ * @param entry_buffer  Buffer of entry pointers to be filled
+ * @param buffer_max    Maximum entries for the buffer
+ * @return int          Number of entries found
  */
-int get_madt_entries(madt_table* madt, madt_entry_type target, madt_entry** buffer, int buffer_max) {
+int get_entries(table_header* target_table, uint8_t target_type, entry_header** entry_buffer, int buffer_max) {
 
-    // Find where the madt ends
-    uintptr_t end_point = (uintptr_t)madt + madt->length;
-    madt_entry* current_entry = &(madt->entries[0]);
+    // Find where the table ends
+    uintptr_t end_point = (uintptr_t)target_table + target_table->length;
+    entry_header* current_entry = target_table->get_entry_start();
     int buffer_index = 0;
 
     // Loop through all entries
     while ((uintptr_t)current_entry < end_point) {
-        if (current_entry->type == target) {
-            buffer[buffer_index] = current_entry;
-            buffer_index++;
-
-            if (buffer_index == buffer_max) {
-                break;
+        if (current_entry->type == target_type) {
+            if (buffer_index < buffer_max) {
+                entry_buffer[buffer_index] = current_entry;
             }
+            buffer_index++;
         }
 
+        current_entry = (current_entry->next_entry());
+    }
+
+    return buffer_index;
+}
+
+/**
+ * @brief Counts the number of entries of a certain type that are present in a 
+ *        target table
+ * 
+ * @param target_table  Table to search
+ * @param target_type   Type of entry to count
+ * @return int          Number of matching entries found
+ */
+int count_entries(table_header* target_table, uint8_t target_type) {
+    
+    // Find where the table ends
+    uintptr_t end_point = (uintptr_t)target_table + target_table->length;
+    entry_header* current_entry = target_table->get_entry_start();
+    int buffer_index = 0;
+
+    // Loop through all entries
+    while ((uintptr_t)current_entry < end_point) {
+        if (current_entry->type == target_type) {
+            buffer_index++;
+        }
         current_entry = (current_entry->next_entry());
     }
 

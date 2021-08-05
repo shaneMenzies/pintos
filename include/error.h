@@ -6,13 +6,6 @@
 
 #include <stdint.h>
 
-struct error_code_section {
-    uint32_t code;
-    char* caller;
-};
-
-extern struct error_code_section* error_code_addr;
-
 void set_error_terminal(visual_terminal* new_terminal);
 
 void check_error_terminal();

@@ -17,14 +17,16 @@ namespace kernel {
     unsigned int max_commands = 0;
     command_entry** command_entries = 0;
 
-    const unsigned int num_kernel_commands = 2;
+    const unsigned int num_kernel_commands = 3;
     const char* kernel_command_identifiers[num_kernel_commands] = {
         "echo",
-        "test"
+        "test",
+        "cpuinfo"
     };
     int (*kernel_command_pointers[num_kernel_commands])(int argc, char** argv) = {
         commands::echo,
-        commands::test
+        commands::test,
+        commands::cpuinfo
     };
 
 
@@ -173,6 +175,18 @@ namespace kernel {
             (void) argc;
             (void) argv;
             active_terminal->write_s("Test Successful. \n\n");
+            return 0;
+        }
+
+        int cpuinfo(int argc, char* argv[]) {
+            (void) argc;
+            (void) argv;
+
+            active_terminal->tprintf("Total Threads: %u\nTotal Cores: %u\nTotal Sockets: %u\nTotal Domains: %u\n\n",
+                                      threading::topology.total_threads,
+                                      threading::topology.total_cores,
+                                      threading::topology.total_sockets,
+                                      threading::topology.num_domains);
             return 0;
         }
     }

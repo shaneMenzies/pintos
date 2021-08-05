@@ -37,6 +37,11 @@ namespace acpi {
         XSDT = 0x54445358, // "XSDT"
     };
 
+    enum table_entry_offset : size_t {
+        MADT_offset = 8,
+        SRAT_offset = 12,
+    };
+
     enum madt_entry_type : uint8_t {
         processor_apic,
         io_apic,
@@ -47,8 +52,23 @@ namespace acpi {
         processor_x2apic = 9,
     };
 
+    enum srat_entry_type : uint8_t {
+        apic_affinity,
+        mem_affinity,
+        x2apic_affinity,
+    };
+
+    struct entry_header {
+        uint8_t type;
+        uint8_t length;
+
+        entry_header* next_entry() const {
+            return (entry_header*)((uintptr_t)this + length);   
+        }
+    } __attribute__ ((packed));
+
     struct table_header {
-        union {char c_signature[4]; table_signature u_signature;};
+        union {char c_signature[4]; uint32_t u_signature;};
         uint32_t length;
         uint8_t revision;
         uint8_t checksum;
@@ -68,15 +88,34 @@ namespace acpi {
 
             return sum == 0;
         }
+
+        entry_header* get_entry_start() const {
+            size_t offset = 0;
+            
+            switch (u_signature) {
+
+                case table_signature::MADT:
+                    offset = table_entry_offset::MADT_offset;
+                    break;
+                
+                case table_signature::SRAT:
+                    offset = table_entry_offset::SRAT_offset;
+                    break;
+
+                default:
+                    break;
+            }
+
+            return (entry_header*)((uintptr_t)this + sizeof(table_header) + offset);
+        }
+
     } __attribute__ ((packed));
 
-    struct rsdt {
-        table_header header;
+    struct rsdt : table_header {
         uint32_t tables[];
     } __attribute__ ((packed));
 
-    struct xsdt {
-        table_header header;
+    struct xsdt : table_header {
         table_header* tables[];
     } __attribute__ ((packed));
 
@@ -113,54 +152,45 @@ namespace acpi {
 
     } __attribute__ ((packed));
 
-    struct madt_entry {
-        madt_entry_type type;
-        uint8_t length;
-
-        madt_entry* next_entry() const {
-            return (madt_entry*)((uintptr_t)this + length);   
-        }
-    } __attribute__ ((packed));
-
-    struct madt_processor_apic : madt_entry {
+    struct madt_processor_apic : entry_header {
         uint8_t processor_id;
         uint8_t apic_id;
         uint32_t flags;
     } __attribute__ ((packed));
 
-    struct madt_io_apic : madt_entry {
+    struct madt_io_apic : entry_header {
         uint8_t io_apic_id;
         uint8_t reserved;
         uint32_t io_apic_addr;
         uint32_t global_int_base;
     } __attribute__ ((packed));
 
-    struct madt_io_apic_src_override : madt_entry {
+    struct madt_io_apic_src_override : entry_header {
         uint8_t bus_src;
         uint8_t irq_src;
         uint32_t global_int;
         uint16_t flags;
     } __attribute__ ((packed));
 
-    struct madt_io_apic_nmi_src : madt_entry {
+    struct madt_io_apic_nmi_src : entry_header {
         uint8_t nmi_src;
         uint8_t reserved;
         uint16_t flags;
         uint32_t global_int;
     } __attribute__ ((packed));
 
-    struct madt_apic_nmi : madt_entry {
+    struct madt_apic_nmi : entry_header {
         uint8_t processor_id;
         uint16_t flags;
         uint8_t lint;
     } __attribute__ ((packed));
 
-    struct madt_apic_addr_override : madt_entry {
+    struct madt_apic_addr_override : entry_header {
         uint16_t reserved;
         uint64_t apic_addr;
     } __attribute__ ((packed));
 
-    struct madt_processor_x2apic : madt_entry {
+    struct madt_processor_x2apic : entry_header {
         uint16_t reserved;
         uint32_t processor_id;
         uint32_t flags;
@@ -170,14 +200,55 @@ namespace acpi {
     struct madt_table : table_header {
         uint32_t local_apic_addr;
         uint32_t flags;
-        madt_entry entries[];
+        entry_header entries[];
+
+    } __attribute__ ((packed));
+
+    struct srat_apic_affinity : entry_header {
+        uint8_t lo_DM;
+        uint8_t APIC_ID;
+        uint32_t flags;
+        uint8_t SAPIC_EID;
+        uint8_t hi_DM[3];
+        uint32_t CDM;
+    } __attribute__ ((packed));
+
+    struct srat_mem_affinity : entry_header {
+        uint32_t domain; 
+        uint8_t reserved1[2]; 
+        uint32_t lo_base;
+        uint32_t hi_base; 
+        uint32_t lo_length;   
+        uint32_t hi_length; 
+        uint8_t reserved2[4]; 
+        uint32_t flags;
+        uint8_t reserved3[8];
+    } __attribute__ ((packed));
+
+    struct srat_x2apic_affinity : entry_header {
+        uint8_t type;
+        uint8_t length;
+        uint8_t reserved1[2]; 
+        uint32_t domain;
+        uint32_t x2APIC_ID;
+        uint32_t flags; 
+        uint32_t _CDM;
+        uint8_t reserved2[4];
+    } __attribute__ ((packed));
+
+    struct srat_table : table_header {
+        uint8_t reserved[12];
+        entry_header entries[];
+
     } __attribute__ ((packed));
 
     old_rsdp* find_rsdp(multiboot_boot_info* mb_info);
 
     table_header* get_table(old_rsdp* rsdp, table_signature target);
 
-    int get_madt_entries(madt_table* madt, madt_entry_type target, madt_entry** buffer, int buffer_max = 32);
+    int get_entries(table_header* target_table, uint8_t target_type, entry_header** entry_buffer, int buffer_max = 32);
+    int count_entries(table_header* target_table, uint8_t target_type);
+
 
 }
 

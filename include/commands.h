@@ -5,6 +5,7 @@
 
 #include "keyboard.h"
 #include "libk.h"
+#include "threading.h"
 
 namespace kernel {
 
@@ -33,6 +34,7 @@ namespace kernel {
     namespace commands {
         int echo(int argc, char* argv[]);
         int test(int argc, char* argv[]);
+        int cpuinfo(int argc, char* argv[]);
     }
 }
 

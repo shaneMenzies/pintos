@@ -13,6 +13,7 @@
 #include "commands.h"
 #include "paging.h"
 #include "pintos_std.h"
+#include "threading.h"
 
 extern "C" {
 

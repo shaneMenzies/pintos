@@ -35,11 +35,13 @@ namespace acpi {
         SRAT = 0x53415253, // "SRAT"
         SSDT = 0x54445353, // "SSDT"
         XSDT = 0x54445358, // "XSDT"
+        HPET = 0x54455048, // "HPET"
     };
 
     enum table_entry_offset : size_t {
         MADT_offset = 8,
         SRAT_offset = 12,
+        HPET_offset = 4,
     };
 
     enum madt_entry_type : uint8_t {
@@ -240,6 +242,27 @@ namespace acpi {
         uint8_t reserved[12];
         entry_header entries[];
 
+    } __attribute__ ((packed));
+
+    struct hpet_address {
+        uint8_t address_space_id;
+        uint8_t register_bit_width;
+        uint8_t register_bit_offset;
+        uint8_t reserved;
+        uint64_t address;
+    } __attribute__ ((packed));
+
+    struct hpet_table : table_header {
+        uint8_t hardware_rev_id;
+        uint8_t comparator_count:5;
+        uint8_t counter_size:1;
+        uint8_t reserved:1;
+        uint8_t legacy_replacement:1;
+        uint16_t pci_vendor_id;
+        hpet_address address;
+        uint8_t hpet_number;
+        uint16_t minimum_tick;
+        uint8_t page_protection;
     } __attribute__ ((packed));
 
     old_rsdp* find_rsdp(multiboot_boot_info* mb_info);

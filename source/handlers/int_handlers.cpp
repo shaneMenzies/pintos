@@ -8,6 +8,7 @@
  */
 
 #include "interrupts.h"
+#include "timer.h"
 
 namespace interrupts {
 
@@ -191,12 +192,9 @@ namespace interrupts {
 
         (void) frame;
 
-        disable_interrupts();
-
         timer::sys_int_timer->run_tasks();
 
         send_EOI(IRQ_BASE + 0);
-        enable_interrupts();
     }
 
     __attribute__((interrupt)) void irq_1(interrupt_frame* frame) {
@@ -375,4 +373,24 @@ namespace interrupts {
     }
 
     /* #endregion*/
+
+    __attribute__((interrupt)) void hpet_periodic_int(interrupt_frame* frame) {
+
+        (void) frame;
+
+        timer::sys_int_timer->run_tasks();
+
+        send_EOI(OFFSET_1 + 0);
+    }
+
+    __attribute__((interrupt)) void hpet_oneshot_int(interrupt_frame* frame) {
+
+        (void) frame;
+
+        // Reset HPET counter to 0
+        *((volatile uint64_t*)((uintptr_t)timer::hpet_timer->address + 0xf0)) = 0;
+
+        timer::sys_int_timer->run_tasks();
+        send_EOI(OFFSET_1 + 0);
+    }
 }

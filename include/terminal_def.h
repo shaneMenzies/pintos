@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "display.h"
-#include "timer.h"
+
 #include "keyboard.h"
+#include "display.h"
 
 class terminal {
 
@@ -70,5 +70,7 @@ class visual_terminal : public terminal {
             draw_cursor(1);
         }
 };
+
+#include "timer.h"
 
 #endif

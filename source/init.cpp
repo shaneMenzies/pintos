@@ -82,19 +82,16 @@ void late_init(multiboot_boot_info* mb_info) {
 
     // Initialize Memory Managment
     memory_init(mb_info);
+    threading::thread_startup_info.thread_start = mb_info->thread_start;
+    threading::thread_startup_info.thread_target = mb_info->thread_target;
+    threading::thread_startup_info.thread_stack_top = mb_info->thread_stack_top;
 
     // Create the kernel command line and master terminal
     kernel::cmd_init();
     log_terminal = new terminal();
     
-    // Start system timer
-    timer::sys_timer_init(32);
-
     // Set up the framebuffer
     framebuffer_init(mb_info);
-
-    // Add cursor drawing
-    timer::sys_int_timer->push_task(1, draw_active_cursor);
 
     // Set up boot terminals
     boot_terminal = new visual_terminal();
@@ -109,11 +106,20 @@ void late_init(multiboot_boot_info* mb_info) {
     // Set default interrupt handlers
     interrupts::interrupts_init((acpi::madt_table*)acpi::get_table(rsdp, acpi::table_signature::MADT));
 
-    // Detect CPU Topology
-    threading::detect_topology((acpi::madt_table*)acpi::get_table(rsdp, acpi::table_signature::MADT), (acpi::srat_table*)acpi::get_table(rsdp, acpi::table_signature::SRAT));
+    // Start system timer
+    timer::sys_timer_init(16384, (acpi::hpet_table*)acpi::get_table(rsdp, acpi::table_signature::HPET));
+
+    // Add cursor drawing
+    timer::sys_int_timer->push_task(1, draw_active_cursor);
 
     // Can now enable interrupts
     enable_interrupts();
+
+    // Detect CPU Topology
+    threading::detect_topology((acpi::madt_table*)acpi::get_table(rsdp, acpi::table_signature::MADT), (acpi::srat_table*)acpi::get_table(rsdp, acpi::table_signature::SRAT));
+
+    // Start Additional threads
+    threading::start_threads();
 
     asm volatile("int $51");
 

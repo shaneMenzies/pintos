@@ -144,6 +144,12 @@ void process_tags(multiboot_boot_info* destination, multiboot_tag* source) {
     destination->mb_start = (uint64_t)((uintptr_t)source | 0ULL);
     destination->mb_size = *((uint32_t*)source);
 
+    // Save thread startup code info
+    destination->thread_start = (uint64_t)((uintptr_t)&thread_startup | 0ULL);
+    destination->thread_stack_top = (uint64_t)((uintptr_t)&next_thread_stack_top | 0ULL);
+    destination->thread_target = (uint64_t)((uintptr_t)&thread_startup_target_code | 0ULL);
+    destination->thread_size = (uint64_t)((uintptr_t)&thread_startup_end - (uintptr_t)&thread_startup);
+
     // Get total size and move to the first tag
     uintptr_t tags_end = ((uintptr_t)source + *((uint32_t*)source));
     source = (multiboot_tag*)((uintptr_t)source + 8);

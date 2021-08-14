@@ -12,6 +12,9 @@
 
 extern void* max_phys_address;
 
+void fill_protected_regions(multiboot_boot_info* mb_info);
+void clear_protected_regions(void* added_start, size_t added_size);
+
 trees::bookmark* mkalloc();
 
 trees::bookmark mmap_to_mark(multiboot_mmap_entry* mmap);

@@ -6,6 +6,8 @@
 #include "asm_functions.h"
 #include "acpi.h"
 
+#define HPET_PERIOD_CONSTANT 1000000000000000UL
+
 enum IO_ports : uint16_t{
     PIC_1 = 0x20,
     PIC_1_CMD = (PIC_1),
@@ -117,6 +119,32 @@ struct io_apic_info {
     uint8_t id;
 
     void fill(acpi::madt_io_apic* source);
+};
+
+struct hpet_comparator {
+    volatile uint64_t* address;
+    unsigned int index;
+    uint32_t valid_irqs;
+    uint8_t current_irq;
+    bool periodic_capable;
+    bool used;
+};
+
+struct hpet_info {
+    acpi::hpet_table* acpi_table;
+    volatile uint64_t* address;
+    uint64_t rate;
+    uint64_t min_tick;
+    bool legacy_capable;
+    bool long_capable;
+    unsigned int num_comparators;
+    hpet_comparator* comparators;
+
+    volatile uint64_t* get_comparator_address(int index) const {
+        return (volatile uint64_t*)((uintptr_t)address + 0x100 + (0x20 * index));
+    };
+
+    hpet_info(acpi::hpet_table* table);
 };
 
 namespace serial {

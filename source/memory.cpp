@@ -50,6 +50,54 @@ void operator delete[](void* p, long unsigned int size) {
     free(p);
 }
 
+const unsigned int num_protected_regions = 6;
+void* protected_regions[num_protected_regions][2] = {
+    {(void*)&kernel_start, (void*)((uintptr_t)&kernel_end - (uintptr_t)&kernel_start)},
+    {0, 0}, // Boot processor's stack
+    {0, 0}, // Boot data 
+    {0, 0}, // Multiboot info
+    {0, 0}, // Additional thread startup code
+    {0, (void*)32}
+};
+
+void fill_protected_regions(multiboot_boot_info* mb_info) {
+    // Stack
+    protected_regions[1][0] = mb_info->stack_bottom;
+    protected_regions[1][1] = (void*)((uintptr_t)mb_info->stack_top - (uintptr_t)mb_info->stack_bottom);
+
+    // Boot data
+    protected_regions[2][0] = mb_info->boot_start;
+    protected_regions[2][1] = (void*)mb_info->boot_size;
+
+    // Multiboot info
+    protected_regions[3][0] = mb_info->mb_start;
+    protected_regions[3][1] = (void*)mb_info->mb_size;
+
+    // Additional thread startup code
+    protected_regions[4][0] = mb_info->thread_start;
+    protected_regions[4][1] = (void*)mb_info->thread_size;
+}
+
+void clear_protected_regions(void* added_start, size_t added_size) {
+    void* added_end = (void*)((uintptr_t)added_start + added_size);
+
+    // Compare what's been added to each protected region
+    for (unsigned int i = 0; i < num_protected_regions; i++) {
+        void* protected_start = protected_regions[i][0];
+        void* protected_end = (void*)((uintptr_t)protected_start + (uintptr_t)protected_regions[i][1]);
+        bool in_protected = false;
+
+        in_protected |= ((added_end >= protected_start) && (added_end <= protected_end));
+        in_protected |= ((added_start <= protected_start) && (added_end >= protected_end));
+        in_protected |= ((added_start >= protected_start) && (added_start <= protected_end));
+
+        if (in_protected) {
+            // Need to clear this protected region of memory
+            talloc(protected_regions[i][0], (size_t)protected_regions[i][1]);
+        }
+    }
+}
+
 /**
  * @brief Allocates space for a new bookmark, and returns a pointer
  *        to the newly allocated mark
@@ -107,7 +155,7 @@ trees::bookmark mmap_to_mark (multiboot_mmap_entry* mmap) {
         case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
             /* fallthrough */
         default:
-            return_mark.flags &= (!trees::MARK_FREE); 
+            return_mark.flags &= ~(trees::MARK_FREE); 
     }
 
     return return_mark;
@@ -130,7 +178,7 @@ trees::bookmark mmap_to_mark (efi_mmap_entry* mmap) {
     if ((mmap->type > 0 && mmap->type < 5) || mmap->type == 7 || mmap->type == 14) {
         return_mark.flags |= trees::MARK_FREE;
     } else {
-        return_mark.flags &= (!trees::MARK_FREE);
+        return_mark.flags &= ~(trees::MARK_FREE);
     }
 
     return return_mark;
@@ -142,6 +190,9 @@ trees::bookmark mmap_to_mark (efi_mmap_entry* mmap) {
  * @param mb_info   Pointer to the boot info structure
  */
 void memory_init(multiboot_boot_info* mb_info) {
+
+    // Fill missing protected regions
+    fill_protected_regions(mb_info);
 
     // Start up mark allocation on bootstrap bank
     mkalloc_start = (void*)bootstrap_bank;
@@ -162,12 +213,17 @@ void memory_init(multiboot_boot_info* mb_info) {
             trees::bookmark* converted_mark = mkalloc();
             *converted_mark = mmap_to_mark(next_mmap);
 
+            // Identity map the region
+            paging::identity_map_region((uintptr_t)converted_mark->start, converted_mark->size);
+
             if (converted_mark->flags & trees::MARK_FREE) {
                 // Check if this is a new greatest accessible address
                 if (converted_mark->end > max_phys_address)
                     max_phys_address = converted_mark->end;
 
                 free_marks.insert(converted_mark);
+
+                clear_protected_regions(converted_mark->start, converted_mark->size);
             } else {
                 used_marks.insert(converted_mark);
             }
@@ -189,6 +245,9 @@ void memory_init(multiboot_boot_info* mb_info) {
         while (1) {
             trees::bookmark* converted_mark = mkalloc();
             *converted_mark = mmap_to_mark(next_mmap);
+
+            // Identity map the region
+            paging::identity_map_region((uintptr_t)converted_mark->start, converted_mark->size);
 
             if (converted_mark->flags & trees::MARK_FREE) {
                 // Check if this is a new greatest accessible address
@@ -215,6 +274,9 @@ void memory_init(multiboot_boot_info* mb_info) {
         new_mark->size = (size_t)(mb_info->meminfo_tag->mem_lower + mb_info->meminfo_tag->mem_upper - 1);
         free_marks.insert(new_mark);
 
+        // Identity map the region
+        paging::identity_map_region(1, (size_t)(mb_info->meminfo_tag->mem_lower + mb_info->meminfo_tag->mem_upper - 1));
+
     // At least we know the kernel was loaded so assume all memory below the kernel end is available, but nothing else
     } else {
         trees::bookmark* new_mark = mkalloc();
@@ -222,14 +284,12 @@ void memory_init(multiboot_boot_info* mb_info) {
         new_mark->end = (void*)&kernel_end;
         new_mark->size = (size_t)((uintptr_t)&kernel_end - 1);
         free_marks.insert(new_mark);
-    }
 
-    // Allocate the areas already being used
-    talloc((void*)&kernel_start, (size_t)( (uintptr_t)&kernel_end - (uintptr_t)&kernel_start ) );
-    talloc(mb_info->boot_start, mb_info->boot_size);
-    talloc(mb_info->mb_start, mb_info->mb_size);    
-    talloc((void*)0, 32);
+        // Identity map the region
+        paging::identity_map_region(1, (size_t)&kernel_end - 1);
+    }
 }
+
 
 /**
  * @brief Allocates an area of memory the size of size in bytes
@@ -272,9 +332,6 @@ void* malloc(size_t size) {
     new_mark->end = (void*)((uintptr_t)return_address + size);
     new_mark->flags &= ~(trees::MARK_FREE);
     used_marks.insert(new_mark);
-
-    // Ensure the area is paged
-    paging::identity_map_region((uintptr_t)return_address, size);
 
     return return_address;
 }
@@ -332,9 +389,6 @@ void* balloc(size_t size, size_t alignment) {
     used_mark->end = (void*)((uintptr_t)return_address + size);
     used_mark->flags &= ~(trees::MARK_FREE);
     used_marks.insert(used_mark);
-
-    // Ensure the area is paged
-    paging::identity_map_region((uintptr_t)return_address, size);
 
     return return_address;
 }
@@ -425,9 +479,6 @@ void* talloc(void* target_address, size_t size) {
     new_mark->size = size;
     new_mark->end = end_address;
     used_marks.insert(new_mark);
-
-    // Ensure the area is paged
-    paging::identity_map_region((uintptr_t)target_address, size);
 
     return target_address;
 }

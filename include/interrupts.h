@@ -43,8 +43,8 @@ namespace interrupts {
     void idt_init(acpi::madt_table* madt);
     void interrupts_init(acpi::madt_table* madt);
 
-    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame));
-    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame, uint64_t error_code));
+    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame), bool irq = true);
+    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame, uint64_t error_code), bool irq = true);
     void clear_interrupt(uint8_t interrupt);
 
     /**
@@ -122,6 +122,8 @@ namespace interrupts {
     __attribute__((interrupt)) void test_int(interrupt_frame* frame);
     __attribute__((interrupt)) void spurious_int(interrupt_frame* frame);
 
+    __attribute__((interrupt)) void hpet_periodic_int(interrupt_frame* frame);
+    __attribute__((interrupt)) void hpet_oneshot_int(interrupt_frame* frame);
 }
 
 #endif

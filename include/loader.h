@@ -14,4 +14,11 @@
 
 const char kernel_mod_identifier[] = "pintos_kernel_64";
 
+extern "C" {
+    extern void* thread_startup_target_code;
+    extern void* next_thread_stack_top;
+    extern void thread_startup();
+    extern char thread_startup_end;
+}
+
 #endif

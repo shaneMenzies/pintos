@@ -548,7 +548,7 @@ bookmark* mark_tree::find_aligned(size_t min_size, size_t alignment, uintptr_t& 
                 split_address = 0;
             } else if (((uintptr_t)current_mark->end & not_mask) > ((uintptr_t)current_mark->start & not_mask)) {
                 // This mark contains an aligned address
-                if (((uintptr_t)current_mark->end - (((uintptr_t)current_mark->start & not_mask) + alignment)) > min_size) {
+                if (((uintptr_t)current_mark->end - (((uintptr_t)current_mark->start & not_mask) + alignment)) >= min_size) {
                     // Mark can fit size at the aligned address, but needs to be split
                     last_suitable = current_mark;
                     split_address = (((uintptr_t)current_mark->start & not_mask) + alignment);
@@ -557,7 +557,7 @@ bookmark* mark_tree::find_aligned(size_t min_size, size_t alignment, uintptr_t& 
         }
 
         // Jump to the next mark
-        if ((current_mark->size < min_size) && current_mark->has_right()) {
+        if (((current_mark->size < min_size) || ((uintptr_t)last_suitable == 0 && current_mark->size < (min_size * 2))) && current_mark->has_right()) {
             current_mark = current_mark->link[RIGHT];
         } else if ((current_mark->size > min_size) && current_mark->has_left()) {
             current_mark = current_mark->link[LEFT];
@@ -701,9 +701,7 @@ bookmark* mark_tree::find_containing(void* target_addr) {
 
     }
 
-    // If it still hasn't been found, then it probably doesn't exist, so
-    // raise an error and return 0
-    raise_error(202, const_cast<char*>("mark_tree::hard_find(void*)"));
+    // If it still hasn't been found, then it probably doesn't exist, so return 0
     return 0;
 }
 

@@ -91,3 +91,25 @@ void set_gdt(void* table, uint16_t size) {
                     : "rax", "rdx"
     );
 }
+
+extern "C" {
+    volatile bool release_spinlock = false;
+    volatile bool spinlock_reached = false;
+    void (*after_spinlock_target)() = (void (*)())&thread_spinlock;
+
+    void thread_spinlock() {
+        // Set flag that this thread has reached the spinlock
+        spinlock_reached = true;
+
+        // Wait for the spinlock to be released by the boot processor
+        while(!release_spinlock) {}
+        
+        // Reset the flags for the next thread
+        release_spinlock = false;
+        spinlock_reached = false;
+
+        // Go to new target code
+        after_spinlock_target();
+    }
+}
+

@@ -13,7 +13,9 @@ SECTIONS {
     }
 
     .data BLOCK(4K) : ALIGN(4K) {
+        data_start = .;
         *(.data)
+        data_end = .;
     }
 
     .bss BLOCK(4K) : ALIGN(4K) {

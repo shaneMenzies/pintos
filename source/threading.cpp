@@ -11,7 +11,13 @@
 
 namespace threading {
 
+    struct new_thread_startup_info thread_startup_info;
+
     system topology;
+
+    void halt() {
+        asm volatile ("hlt");
+    }
 
     void detect_topology(acpi::madt_table* madt, acpi::srat_table* srat) {
 
@@ -27,6 +33,9 @@ namespace threading {
         logical_core* logical_cores = (logical_core*)malloc(sizeof(logical_core) * total_entries);
         acpi::entry_header** acpi_entries = (acpi::entry_header**)malloc(sizeof(acpi::entry_header*) * total_entries);
 
+        // Get the boot thread's apic id
+        uint32_t boot_apic_id = *get_apic_register(0x20);
+
         // Check standard apic entries
         int num_entries = acpi::get_entries(madt, acpi::madt_entry_type::processor_apic, acpi_entries, total_entries);
         int i = 0;
@@ -38,6 +47,8 @@ namespace threading {
                 logical_cores[num_logical].physical_index = 0;
                 logical_cores[num_logical].socket_index = 0;
                 logical_cores[num_logical].domain_index = 0;
+                logical_cores[num_logical].x2apic_thread = false;
+                logical_cores[num_logical].boot_thread = (logical_cores[num_logical].apic_id == boot_apic_id);
                 num_logical++;
             }
             i++;
@@ -53,6 +64,8 @@ namespace threading {
                 logical_cores[num_logical].physical_index = 0;
                 logical_cores[num_logical].socket_index = 0;
                 logical_cores[num_logical].domain_index = 0;
+                logical_cores[num_logical].x2apic_thread = true;
+                logical_cores[num_logical].boot_thread = (logical_cores[num_logical].apic_id == boot_apic_id);
                 num_logical++;
             }
             i++;
@@ -315,4 +328,66 @@ namespace threading {
         topology.total_sockets = num_sockets;
     }
 
+    void logical_core::start_thread(void (*target_code)()) {
+
+        // Make sure we aren't targeting the current thread
+        if (*(get_apic_register(0x20)) == apic_id) {
+            boot_thread = true;
+            return;
+        }
+
+        // Prepare startup environment for the new core
+        *thread_startup_info.thread_target = (void*)(thread_spinlock);
+        *thread_startup_info.thread_stack_top = (void*)((uintptr_t)malloc(32768) + 32768);
+
+        // Send initialize assertion command
+        send_apic_command(apic_id, 0, 5, false, true, true, 0);
+        timer::sys_int_timer->sleep(0.001);
+
+        // Send initialization de-assert command
+        send_apic_command(apic_id, 0, 5, false, false, true, 0);
+        timer::sys_int_timer->sleep(0.001);
+
+        // Send interrupt to bootstrap code, and wait 1ms (0.0001 seconds)
+        send_apic_command(apic_id, ((uintptr_t)thread_startup_info.thread_start / paging::page_size), 6, false, false, false, 0);
+        timer::sys_int_timer->sleep(0.0001);
+
+        // Send it again if the new thread hasn't reached the spinlock yet
+        if (!spinlock_reached) {
+            // Repeat the interrupt, waiting up to 1s this time
+            send_apic_command(apic_id, ((uintptr_t)thread_startup_info.thread_start / paging::page_size), 6, false, false, false, 0);
+            for (int i = 0; i < 100; i++) {
+                if (spinlock_reached) {
+                    break;
+                } else {
+                    timer::sys_int_timer->sleep(0.01);
+                }
+            }
+        }
+
+        if (spinlock_reached) {
+            // Can set the new target and release the thread from it's spinlock
+            after_spinlock_target = target_code;
+            release_spinlock = true;
+        }
+
+    }
+
+    void start_threads(void (*target)()) {
+        for (unsigned int d = 0; d < topology.num_domains; d++) {
+            // Loop through domains
+            numa_domain current_domain = topology.domain[d];
+            for (unsigned int s = 0; s < current_domain.num_socket; s++) {
+                socket current_socket = current_domain.sockets[s];
+                for (unsigned int p = 0; p < current_socket.num_physical; p++) {
+                    physical_core core = current_socket.physical[p];
+                    for (unsigned int l = 0; l < core.num_logical; l++) {
+                        if (!core.logical[l].boot_thread) {
+                            core.logical[l].start_thread(target);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

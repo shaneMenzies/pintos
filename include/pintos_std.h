@@ -47,6 +47,14 @@ struct multiboot_boot_info {
     void* boot_start;
     size_t boot_size;
 
+    void* stack_bottom;
+    void* stack_top;
+
+    void* thread_start;
+    size_t thread_size;
+    void** thread_target;
+    void** thread_stack_top;
+
     void* mb_start;
     size_t mb_size;
 
@@ -105,6 +113,14 @@ struct multiboot_boot_info {
 
     uint64_t boot_start;
     uint64_t boot_size;
+
+    uint64_t stack_bottom;
+    uint64_t stack_top;
+
+    uint64_t thread_start;
+    uint64_t thread_size;
+    uint64_t thread_target;
+    uint64_t thread_stack_top;
 
     uint64_t mb_start;
     uint64_t mb_size;

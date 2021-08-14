@@ -165,40 +165,10 @@ namespace interrupts {
 
         if (legacy_pic_mode) {
             // Hardware IRQs for legacy PIC mode
-            set_interrupt((OFFSET_1 + 0), INT_GATE_32, irq_0);
             set_interrupt((OFFSET_1 + 1), INT_GATE_32, irq_1);
-            //set_interrupt((OFFSET_1 + 2), INT_GATE_32, irq_2);
-            //set_interrupt((OFFSET_1 + 3), INT_GATE_32, irq_3);
-            //set_interrupt((OFFSET_1 + 4), INT_GATE_32, irq_4);
-            //set_interrupt((OFFSET_1 + 5), INT_GATE_32, irq_5);
-            //set_interrupt((OFFSET_1 + 6), INT_GATE_32, irq_6);
-            //set_interrupt((OFFSET_1 + 7), INT_GATE_32, irq_7);
-            //set_interrupt((OFFSET_1 + 8), INT_GATE_32, irq_8);
-            //set_interrupt((OFFSET_1 + 9), INT_GATE_32, irq_9);
-            //set_interrupt((OFFSET_1 + 10), INT_GATE_32, irq_10);
-            //set_interrupt((OFFSET_1 + 11), INT_GATE_32, irq_11);
-            //set_interrupt((OFFSET_1 + 12), INT_GATE_32, irq_12);
-            //set_interrupt((OFFSET_1 + 13), INT_GATE_32, irq_13);
-            //set_interrupt((OFFSET_1 + 14), INT_GATE_32, irq_14);
-            //set_interrupt((OFFSET_1 + 15), INT_GATE_32, irq_15);
         } else {
             // Hardware IRQs for the IOAPIC
-            set_interrupt((IRQ_BASE + 0), INT_GATE_32, irq_0);
             set_interrupt((IRQ_BASE + 1), INT_GATE_32, irq_1);
-            //set_interrupt((IRQ_BASE + 2), INT_GATE_32, irq_2);
-            //set_interrupt((IRQ_BASE + 3), INT_GATE_32, irq_3);
-            //set_interrupt((IRQ_BASE + 4), INT_GATE_32, irq_4);
-            //set_interrupt((IRQ_BASE + 5), INT_GATE_32, irq_5);
-            //set_interrupt((IRQ_BASE + 6), INT_GATE_32, irq_6);
-            //set_interrupt((IRQ_BASE + 7), INT_GATE_32, irq_7);
-            //set_interrupt((IRQ_BASE + 8), INT_GATE_32, irq_8);
-            //set_interrupt((IRQ_BASE + 9), INT_GATE_32, irq_9);
-            //set_interrupt((IRQ_BASE + 10), INT_GATE_32, irq_10);
-            //set_interrupt((IRQ_BASE + 11), INT_GATE_32, irq_11);
-            //set_interrupt((IRQ_BASE + 12), INT_GATE_32, irq_12);
-            //set_interrupt((IRQ_BASE + 13), INT_GATE_32, irq_13);
-            //set_interrupt((IRQ_BASE + 14), INT_GATE_32, irq_14);
-            //set_interrupt((IRQ_BASE + 15), INT_GATE_32, irq_15);
         }
 
         // Set up Software Interrupts
@@ -219,7 +189,7 @@ namespace interrupts {
      * @param gate_type     Gate type for the interrupt to be set as
      * @param handler       New interrupt handler
      */
-    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame)) {
+    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame), bool irq) {
         x86_tables::set_gate(idt_table[interrupt], (void*)handler, x86_tables::code_selector, 0b11, 
                              gate_type, true);
 
@@ -230,7 +200,7 @@ namespace interrupts {
             }
         } else if (interrupt >= IRQ_BASE && interrupt < IRQ_END) {
             // Update IOAPIC mask if in it's range
-            uint8_t global_int = irq_mapping[interrupt - IRQ_BASE];
+            uint8_t global_int = irq ? irq_mapping[interrupt - IRQ_BASE] : (interrupt - IRQ_BASE);
             io_apic_info current_apic;
             bool valid_apic = false;
             for (int i = 0; i < io_apic_count; i++) {
@@ -265,7 +235,7 @@ namespace interrupts {
      * @param gate_type     Gate type for the interrupt to be set as
      * @param handler       New interrupt handler
      */
-    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame, unsigned long int error_code)) {
+    void set_interrupt(uint8_t interrupt, uint8_t gate_type, void (*handler)(interrupt_frame* frame, unsigned long int error_code), bool irq) {
         x86_tables::set_gate(idt_table[interrupt], (void*)handler, x86_tables::code_selector, 0b11, 
                              gate_type, true);
 
@@ -274,8 +244,32 @@ namespace interrupts {
             if (interrupt >= OFFSET_1 && interrupt < OFFSET_END) {
                 PIC_set_mask((interrupt - OFFSET_1));
             }
-        } else {
+        } else if (interrupt >= IRQ_BASE && interrupt < IRQ_END) {
             // Update IOAPIC mask if in it's range
+            uint8_t global_int = irq ? irq_mapping[interrupt - IRQ_BASE] : (interrupt - IRQ_BASE);
+            io_apic_info current_apic;
+            bool valid_apic = false;
+            for (int i = 0; i < io_apic_count; i++) {
+                current_apic = system_io_apic[i];
+                if (current_apic.start <= global_int && current_apic.end > global_int) {
+                    valid_apic = true;
+                    break;
+                }
+            }
+
+            if (valid_apic) {
+                global_int -= current_apic.start;
+                io_apic_redirection_entry target = current_apic.address->get_interrupt(global_int);
+                target.data.masked = 0;
+                target.data.int_vector = interrupt;
+                target.data.delivery_mode = 0;
+                target.data.trigger_mode = 0;
+                target.data.dest_mode = 0;
+                // TODO: With Multicore capability, decide which APIC/core should get the new interrupt
+                target.data.destination = (*(get_apic_register(0x20)) & 0xf);
+
+                current_apic.address->set_interrupt(global_int, target);
+            }
         }
     }
 

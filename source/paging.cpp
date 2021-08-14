@@ -141,13 +141,21 @@ void identity_map_region(uintptr_t target_address, size_t size) {
             // Map next page directory
             identity_map_pd(target_address);
             target_address += page_directory_size;
-            size -= page_directory_pointer_size;
+            if (size > page_directory_size) {
+                size -= page_directory_size;
+            } else {
+                size = 0;
+            }
 
         } else if ((size > page_table_size) && ((target_address & (page_table_size - 1)) == 0)) {
             // Map next page table
             identity_map_pt(target_address);
             target_address += page_table_size;
-            size -= page_table_size;
+            if (size > page_table_size) {
+                size -= page_table_size;
+            } else {
+                size = 0;
+            }
 
         } else {
             // Map next page

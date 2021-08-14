@@ -124,7 +124,7 @@ table_header* get_table(old_rsdp* rsdp, table_signature target) {
         }
     }
 
-    // MADT not found
+    // Requested table not found
     return 0;
 }
 

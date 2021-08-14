@@ -8,10 +8,11 @@ CFG_DIR := config
 TOOLCHAIN_32 = i686-elf
 TOOLCHAIN := x86_64-elf
 
-C_FLAGS := -I$(INCLUDE_DIR) -I$(INCLUDE_DIR)/acpi -ffreestanding -fno-isolate-erroneous-paths-attribute -nostdlib -z max-page-size=0x1000 -mno-red-zone -Ofast -Wall -Wextra -g
+O_LEVEL := -Ofast
+C_FLAGS := -I$(INCLUDE_DIR) -I$(INCLUDE_DIR)/acpi -ffreestanding -fno-isolate-erroneous-paths-attribute -nostdlib -z max-page-size=0x1000 -mno-red-zone $(O_LEVEL) -Wall -Wextra -g
 x64_FLAGS := -m64 -mcmodel=large
 CXX_FLAGS := $(C_FLAGS) -fno-exceptions -fno-rtti
-LD_FLAGS := -Ofast -nostdlib -lgcc -g -Xlinker -Map=kernel.map
+LD_FLAGS := $(O_LEVEL) -nostdlib -lgcc -g -Xlinker -Map=kernel.map
 
 BOOT_LD_FLAGS := -O2 -nostdlib -lgcc -g -Xlinker -Map=bootstrap.map
 

@@ -2,10 +2,11 @@
 
 # Stack Allocation
 .section .bss
+bss_start:
 .align 16
 .global stack_bottom
 stack_bottom:
-.skip 16384 # 16 KiB
+.skip 32768 # 32 KiB Stack
 .global stack_top
 stack_top:
 
@@ -22,6 +23,7 @@ PDT:
 .skip 0x1000
 PT:
 .skip 0x2000
+bss_end:
 
 # Entry point _start
 .section .text
@@ -49,6 +51,11 @@ _start:
     push ebx
     lea eax, [multiboot_boot_info]
     push eax
+    lea eax, [data_start]
+    mov [multiboot_boot_info], eax
+    lea ebx, [data_end]
+    sub ebx, eax
+    mov [multiboot_boot_info + 8], ebx
     call process_tags
     add esp, 8
 
@@ -107,6 +114,7 @@ enter_long:
         add edi, 8
         loop SetEntry
 
+    # Enable PAE
     mov eax, cr4
     or eax, 1 << 5
     mov cr4, eax
@@ -117,6 +125,7 @@ enter_long:
     or eax, 1 << 8
     wrmsr
 
+    # Enable paging
     mov eax, cr0
     or eax, 1 << 31
     mov cr0, eax
@@ -152,8 +161,8 @@ kernel_entry_point:
     .long 0
     .long 0
 
-data_start:
-
+.global GDT64
+.global GDT_pointer
 GDT64:
 
     # Null Segment
@@ -183,16 +192,90 @@ GDT64:
     .byte 0b00000000
     .byte 0
 
-    # GDT Pointer info
-    GDT_Pointer:
-    .word GDT_Pointer - GDT64 - 1
-    .4byte GDT64
+# GDT Pointer info
+GDT_Pointer:
+.word GDT_Pointer - GDT64 - 1
+.4byte GDT64
 
 .global multiboot_boot_info
 multiboot_boot_info:
-.4byte data_start
+.4byte 0 # boot_start
 .4byte 0
-.4byte (data_end - data_start)
+.4byte 0 # boot_size
+.4byte 0
+.4byte bss_start
+.4byte 0
+.4byte bss_end
+.4byte 0
 .skip 386
 
-data_end:
+# New thread entry point
+.section .text
+.global thread_startup
+.type thread_startup, @function
+.align 0x1000
+.code16
+thread_startup:
+    cli
+    cld
+
+    # Set the paging table
+    mov edi, 0xd000 
+    mov cr3, edi
+
+    # Enable PAE
+    mov eax, cr4
+    or eax, 1 << 5
+    mov cr4, eax
+
+    # Enable long mode
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 1 << 8
+    wrmsr
+
+    mov eax, cr0
+    or eax, 1 << 31 | 1
+    mov cr0, eax
+
+    lea eax, [GDT_Pointer]
+    lgdt [eax]
+
+    # Reload gdt segment registers
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov ds, ax
+
+    # Save address of the target code
+    lea ebx, [thread_startup_target_code]
+
+    # Jump into 64-bit code
+    jmp 0x08:thread_long_jump
+
+.global thread_long_jump
+thread_long_jump:
+.code64
+
+    # Setup stack
+    mov rsp, [rbx + 8]
+    mov rbp, [rbx + 8]
+
+    # Jump into the kernel
+    mov rax, [rbx]
+    jmp rax
+
+.global thread_startup_end
+thread_startup_end:
+
+.section .data
+
+.global thread_startup_target_code
+thread_startup_target_code:
+.8byte 0
+.global next_thread_stack_top
+next_thread_stack_top:
+.8byte 0

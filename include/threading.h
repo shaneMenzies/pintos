@@ -10,14 +10,24 @@
 
 namespace threading {
 
+    extern struct new_thread_startup_info {
+        void* thread_start;
+        void** thread_target;
+        void** thread_stack_top;
+    } thread_startup_info;
+
     struct logical_core {
         uint32_t apic_id;
         bool functional;
+        bool x2apic_thread;
+        bool boot_thread;
 
         uint32_t logical_index;
         uint32_t physical_index;
         uint32_t socket_index;
         uint32_t domain_index;
+
+        void start_thread(void (*target_code)());
 
         friend bool operator==(logical_core& lhs, logical_core& rhs) {
             if (lhs.apic_id != rhs.apic_id 
@@ -88,9 +98,11 @@ namespace threading {
 
     extern system topology;
 
+    void halt();
+
     void detect_topology(acpi::madt_table* madt, acpi::srat_table* srat);
 
-    void new_thread_startup();
+    void start_threads(void (*target)() = halt);
 }
 
 #endif

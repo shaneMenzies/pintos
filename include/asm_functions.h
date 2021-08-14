@@ -18,13 +18,22 @@ inline void write_msr(uint32_t target_msr, uint64_t new_value) {
     asm volatile ("wrmsr" : : "a"(new_value), "d"(new_value >> 32), "c"(target_msr));
 };
 
-inline void* get_apic_base() {
-    return (void*)(read_msr(0x1b) & ~(0xfff));
+inline uint32_t volatile* get_apic_base() {
+    return (uint32_t volatile*)(read_msr(0x1b) & ~(0xfff));
 };
 
 inline uint32_t volatile* get_apic_register(uint16_t target_register) {
     return (uint32_t volatile*)((uintptr_t)get_apic_base() + target_register);
 };
+
+inline void send_apic_command(uint32_t destination, uint8_t vector, uint8_t mode = 0, bool logical_dest = false, bool assert = true, bool level_triggered = false, uint8_t dest_type = 0) {
+    *(get_apic_register(0x310)) = (*(get_apic_register(0x310)) & ~(0xff << 24)) | ((destination & 0xff) << 24);
+    *(get_apic_register(0x300)) = (*(get_apic_register(0x300)) & ~(0x000cdfff)) | vector | ((mode & 0b111) << 8) 
+        | ((logical_dest ? 1 : 0) << 11) | ((assert ? 1 : 0) << 14) | ((level_triggered ? 1 : 0) << 15) | ((dest_type & 2) << 18);
+
+    // Wait for delivery
+    while (*(get_apic_register(0x300)) & (1<<12)) {} 
+}
 
 bool fpu_init();
 void set_idt(void* table, uint16_t size);
@@ -125,5 +134,12 @@ inline uint32_t in_dword(uint16_t port) {
 inline void io_wait() {
     out_byte(0, 0x80);
 };
+
+extern "C" {
+    extern volatile bool release_spinlock;
+    extern volatile bool spinlock_reached;
+    extern void (*after_spinlock_target)();
+    void thread_spinlock();
+}
 
 #endif

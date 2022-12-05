@@ -3,14 +3,14 @@
 # Stack Allocation
 .section .bss
 bss_start:
-.align 16
+.align 0x1000
 .global stack_bottom
 stack_bottom:
 .skip 32768 # 32 KiB Stack
 .global stack_top
 stack_top:
 
-.align 16
+.align 0x1000
 .global PML4T
 .global PDPT
 .global PDT
@@ -22,9 +22,11 @@ PDPT:
 PDT:
 .skip 0x1000
 PT:
-.skip 0x2000
+.skip 0x8000
+
 bss_end:
 
+.code32
 # Entry point _start
 .section .text
 .global _start
@@ -36,46 +38,10 @@ _start:
 
     # Prepare stack for future 64-bit use
     xor ecx, ecx
-    lea eax, [multiboot_boot_info]
     push ecx
-    push eax
-    lea eax, [GDT64]
-    push ecx
-    push eax
-    lea eax, [kernel_entry_point]
-    push ecx
-    push eax
-    mov edx, ebx
-
-    # Process the multiboot tags
-    push ebx
-    lea eax, [multiboot_boot_info]
-    push eax
-    lea eax, [data_start]
-    mov [multiboot_boot_info], eax
-    lea ebx, [data_end]
-    sub ebx, eax
-    mov [multiboot_boot_info + 8], ebx
-    call process_tags
-    add esp, 8
-
-    # Prepare the kernel module and get entry point
-    lea eax, [multiboot_boot_info]
-    push eax
-    lea eax, [kernel_entry_point]
-    push eax
-    call prep_64
-    add esp, 8
-
-    call send_init_serial
-
-    # Confirm that a valid entry point was given
-    mov eax, [kernel_entry_point]
-    test eax, eax
-    jnz enter_long
-    mov eax, [kernel_entry_point + 4]
-    test eax, eax
-    jnz enter_long
+    push ebx # GRUB Multiboot2 info
+    
+    jmp enter_long
 
 1:  hlt
     jmp 1b
@@ -88,31 +54,38 @@ enter_long:
     lea edi, [PML4T]
     mov cr3, edi
     xor eax, eax
-    mov ecx, 4096
+    mov ecx, 0x2c00
     rep stosd
     mov edi, cr3
 
     lea eax, [PDPT]
     add eax, 3
     mov [edi], eax
+
     add edi, 0x1000
     add eax, 0x1000
     mov [edi], eax
+
     add edi, 0x1000
     add eax, 0x1000
     mov [edi], eax
     add edi, 8
     add eax, 0x1000
     mov [edi], eax
-    add edi, (0x1000 - 8)
+    add edi, 8
+    add eax, 0x1000
+    mov [edi], eax
 
+    lea edi, [PT]
     mov ebx, 0x03
-    mov ecx, 1024
+    mov ecx, 0x1000
     SetEntry:
         mov [edi], ebx
         add ebx, 0x1000
         add edi, 8
         loop SetEntry
+
+    continue_entry:
 
     # Enable PAE
     mov eax, cr4
@@ -146,23 +119,38 @@ long_jump:
     mov gs, ax
     mov ss, ax
 
+    # Send Initialization signal
+    call send_init_serial
+
+    # Fill in boot data location
+    lea rax, [rip + data_start]
+    mov [rip + multiboot_boot_info], rax
+    lea rbx, [rip + data_end]
+    sub rbx, rax
+    mov [rip + multiboot_boot_info + 8], rbx
+
+    # Process the multiboot tags
+    pop rsi # GRUB Multiboot2 Structure
+    lea rdi, [rip + multiboot_boot_info] # Target info structure
+    call process_tags
+
+    # Prepare the kernel module and get entry point
+    lea rsi, [rip + multiboot_boot_info]
+    lea rdi, [rip + kernel_entry_point]
+    call prep_entry
+
     # Jump into the kernel
-    pop rax
+    lea rax, [rip + kernel_entry_point]
     mov rax, [rax]
-    pop rsi
-    pop rdi
-    jmp rax
+    lea rdi, [rip + multiboot_boot_info] # Boot info for kernel
+    jmp rax # Enter kernel at _start
 
 .code32
 
 .section .data
 
-kernel_entry_point:
-    .long 0
-    .long 0
-
 .global GDT64
-.global GDT_pointer
+.global GDT_Pointer
 GDT64:
 
     # Null Segment
@@ -197,16 +185,17 @@ GDT_Pointer:
 .word GDT_Pointer - GDT64 - 1
 .4byte GDT64
 
-.global multiboot_boot_info
+.code64
+
+kernel_entry_point:
+    .long 0
+    .long 0
+
 multiboot_boot_info:
-.4byte 0 # boot_start
-.4byte 0
-.4byte 0 # boot_size
-.4byte 0
-.4byte bss_start
-.4byte 0
-.4byte bss_end
-.4byte 0
+.8byte 0 # boot_start
+.8byte 0 # boot_size
+.8byte stack_bottom
+.8byte stack_top
 .skip 386
 
 # New thread entry point
@@ -220,7 +209,8 @@ thread_startup:
     cld
 
     # Set the paging table
-    mov edi, 0xd000 
+    lea edi, [thread_startup_pml4_address]
+    mov edi, [edi]
     mov cr3, edi
 
     # Enable PAE
@@ -279,3 +269,6 @@ thread_startup_target_code:
 .global next_thread_stack_top
 next_thread_stack_top:
 .8byte 0
+.global thread_startup_pml4_address
+thread_startup_pml4_address:
+.4byte PML4T

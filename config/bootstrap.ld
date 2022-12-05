@@ -4,7 +4,8 @@ ENTRY(_start)
 SECTIONS {
 
     .text BLOCK(4K) : ALIGN(4K) {
-        *(.multiboot)
+        . = ALIGN(8);
+        KEEP(*(.multiboot))
         *(.text)
     }
 
@@ -15,11 +16,11 @@ SECTIONS {
     .data BLOCK(4K) : ALIGN(4K) {
         data_start = .;
         *(.data)
-        data_end = .;
     }
 
     .bss BLOCK(4K) : ALIGN(4K) {
         *(COMMON)
         *(.bss)
+        data_end = .;
     }
 }

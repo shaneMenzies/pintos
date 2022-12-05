@@ -4,9 +4,9 @@ ENTRY(_start)
 
 SECTIONS {
 
-    . = 0x100000;
-    kernel_start = .;
+    . = 0xffffff0000000000;
     .text BLOCK(4K) : ALIGN(4K) {
+        kernel_start = .;
         *(.init)
         text_start = .;
         *(.text)

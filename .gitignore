@@ -56,7 +56,7 @@ workspace.code-workspace
 .vscode/
 pintos.bin
 pintos.iso
-.gdbinit
+test.gdbinit
 html/
 latex/
 testing/

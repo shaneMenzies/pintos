@@ -1,8 +1,7 @@
 #!/bin/sh
 
 # Buld pintos and the grub boot efi
-make clean
-make
+make all
 grub-mkstandalone grub_dir -O x86_64-efi --modules="normal part_msdos ext2 multiboot multiboot2 all_video loadbios loadenv" -o BOOTX64.EFI "boot/grub/grub.cfg=config/grub_uefi.cfg" 
 
 # Create uefi boot image containing the app

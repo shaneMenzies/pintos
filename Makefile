@@ -1,86 +1,60 @@
-BASE_DIR := .
-SOURCE_DIR := source
-BOOTSTRAP_DIR := $(SOURCE_DIR)/bootstrap
-INCLUDE_DIR := include
-BUILD_DIR := build
-CFG_DIR := config
+export
 
-TOOLCHAIN_32 = i686-elf
+BASE_DIR := $(shell pwd)
+SOURCE_DIR := $(BASE_DIR)/source
+INCLUDE_DIR := $(BASE_DIR)/include
+BUILD_DIR := $(BASE_DIR)/build
+CFG_DIR := $(BASE_DIR)/config
+SUB_DIRS := $(notdir $(wildcard $(SOURCE_DIR)/*))
+
+C_INCLUDE_DIRS := $(INCLUDE_DIR)
+CPP_INCLUDE_DIRS :=
+TOTAL_C_INCLUDE := $(foreach dir,$(C_INCLUDE_DIRS), -I$(dir))
+TOTAL_CPP_INCLUDE := $(foreach dir,$(CPP_INCLUDE_DIRS), -I$(dir))
+
 TOOLCHAIN := x86_64-elf
 
-O_LEVEL := -Ofast
-C_FLAGS := -I$(INCLUDE_DIR) -I$(INCLUDE_DIR)/acpi -ffreestanding -fno-isolate-erroneous-paths-attribute -nostdlib -z max-page-size=0x1000 -mno-red-zone $(O_LEVEL) -Wall -Wextra -g
+DEBUG ?= 0
+O_LEVEL := -Og
+TARGET_ARCH :=
+C_FLAGS := $(TOTAL_C_INCLUDE) -Wfatal-errors -ffreestanding -fno-isolate-erroneous-paths-attribute -nostdlib -z max-page-size=0x1000 -mno-red-zone $(TARGET_ARCH) $(O_LEVEL) -Wall -Wextra -g
+ifeq ($(DEBUG), 1)
+	C_FLAGS += -DDEBUG=1
+endif
+CXX_FLAGS := $(C_FLAGS) $(TOTAL_CPP_INCLUDE) -std=gnu++20 -Wno-pmf-conversions -fno-exceptions -fno-rtti -fno-use-cxa-atexit
 x64_FLAGS := -m64 -mcmodel=large
-CXX_FLAGS := $(C_FLAGS) -fno-exceptions -fno-rtti
-LD_FLAGS := $(O_LEVEL) -nostdlib -lgcc -g -Xlinker -Map=kernel.map
-
-BOOT_LD_FLAGS := -O2 -nostdlib -lgcc -g -Xlinker -Map=bootstrap.map
+KERNEL_FLAGS := -fstack-protector
+LD_FLAGS := $(O_LEVEL) -nostdlib -lgcc -g -mcmodel=large -Xlinker -Map=kernel.map
 
 LINK_SCRIPT := $(CFG_DIR)/kernel.ld
-BOOT_LINK_SCRIPT := $(CFG_DIR)/bootstrap.ld
 
-BOOT_OBJS += $(patsubst $(BOOTSTRAP_DIR)/%.cpp, $(BUILD_DIR)/bootstrap/%.o, $(wildcard $(BOOTSTRAP_DIR)/*.cpp))
-BOOT_OBJS += $(patsubst $(BOOTSTRAP_DIR)/%.s, $(BUILD_DIR)/bootstrap/%.o, $(wildcard $(BOOTSTRAP_DIR)/*.s))
-
-SRC_OBJS +=$(patsubst $(SOURCE_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(wildcard $(SOURCE_DIR)/*.cpp))
-SRC_OBJS +=$(patsubst $(SOURCE_DIR)/handlers/%.cpp, $(BUILD_DIR)/handlers/%.o, $(wildcard $(SOURCE_DIR)/handlers/*.cpp))
-SRC_OBJS +=$(patsubst $(SOURCE_DIR)/%.s, $(BUILD_DIR)/%.o, $(wildcard $(SOURCE_DIR)/*.s))
-
+SRC_OBJS :=
 CRT_BEGIN := $(shell $(TOOLCHAIN)-g++ $(x64_FLAGS) $(CXX_FLAGS) -print-file-name=crtbegin.o)
 CRT_END := $(shell $(TOOLCHAIN)-g++ $(x64_FLAGS) $(CXX_FLAGS) -print-file-name=crtend.o)
 CRT_I := $(BUILD_DIR)/constructors/crti.o
 CRT_N := $(BUILD_DIR)/constructors/crtn.o
 
-OBJ_LINK_LIST := $(CRT_I) $(CRT_BEGIN) $(SRC_OBJS) $(CRT_END) $(CRT_N) 
-
-BOOTSTRAP_TARGET = pintos_boot.bin
 KERNEL_TARGET = pintos_kernel.bin
+TOTAL_TARGETS :=
 
-all: $(BOOTSTRAP_TARGET) $(KERNEL_TARGET)
+include $(foreach dir,$(SUB_DIRS), $(wildcard $(SOURCE_DIR)/$(dir)/module.mk))
+
+$(info Total objects: $(SRC_OBJS))
+OBJ_LINK_LIST := $(CRT_I) $(CRT_BEGIN) $(SRC_OBJS) $(CRT_END) $(CRT_N)
+
+TOTAL_TARGETS += $(KERNEL_TARGET)
 
 .PHONY: all clean
 
-$(BOOTSTRAP_TARGET) : $(BOOT_OBJS) | $(BUILD_DIR)
-	$(TOOLCHAIN_32)-g++ -T $(BOOT_LINK_SCRIPT) $(BOOT_LD_FLAGS) $(BOOT_OBJS) -o $(BOOTSTRAP_TARGET)
+all: $(TOTAL_TARGETS)
 
 $(KERNEL_TARGET): $(OBJ_LINK_LIST) | $(BUILD_DIR)
-	$(TOOLCHAIN)-g++ -T $(LINK_SCRIPT) $(LD_FLAGS) $(OBJ_LINK_LIST) -o $(KERNEL_TARGET)
+	$(info "kernel")
+	$(TOOLCHAIN)-g++ -T $(LINK_SCRIPT) $(LD_FLAGS) $(KERNEL_FLAGS) $(OBJ_LINK_LIST) -o $(KERNEL_TARGET)
 
-$(BUILD_DIR): 
+$(BUILD_DIR):
 	mkdir -p $@
-	mkdir -p $(BUILD_DIR)/bootstrap
 	mkdir -p $(BUILD_DIR)/constructors
-	mkdir -p $(BUILD_DIR)/handlers
-
-$(CRT_I): $(SOURCE_DIR)/constructors/crti.s | $(BUILD_DIR)
-	$(info $<)
-	$(TOOLCHAIN)-gcc $(x64_FLAGS) $(C_FLAGS) -c $< -o $@
-
-$(CRT_N): $(SOURCE_DIR)/constructors/crtn.s | $(BUILD_DIR)
-	$(info $<)
-	$(TOOLCHAIN)-gcc $(x64_FLAGS) $(C_FLAGS) -c $< -o $@
-
-$(BUILD_DIR)/handlers/%.o: $(SOURCE_DIR)/handlers/%.cpp | $(BUILD_DIR)
-	$(info $<)
-	$(TOOLCHAIN)-g++ $(x64_FLAGS) $(CXX_FLAGS) -mgeneral-regs-only -c $< -o $@
-
-$(BUILD_DIR)/bootstrap/%.o: $(SOURCE_DIR)/bootstrap/%.cpp | $(BUILD_DIR)
-	$(info $<)
-	$(TOOLCHAIN_32)-g++ $(CXX_FLAGS) -c $< -o $@
-
-$(BUILD_DIR)/bootstrap/%.o: $(SOURCE_DIR)/bootstrap/%.s | $(BUILD_DIR)
-	$(info $<)
-	$(TOOLCHAIN_32)-gcc $(C_FLAGS) -c $< -o $@
-
-$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp | $(BUILD_DIR)
-	$(info $<)
-	$(TOOLCHAIN)-g++ $(x64_FLAGS) $(CXX_FLAGS) -c $< -o $@
-
-$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.s | $(BUILD_DIR)
-	$(info $<)
-	$(TOOLCHAIN)-gcc $(x64_FLAGS) $(C_FLAGS) -c $< -o $@
-
 
 clean:
 	@$(RM) -rv $(BUILD_DIR)
-

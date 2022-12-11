@@ -1,6 +1,8 @@
 #ifndef PINTOS_APIC_H
 #define PINTOS_APIC_H
 
+#include "interrupts/interface.h"
+#include "interrupts/interrupt_tree.h"
 #include "libk/asm.h"
 #include "libk/common.h"
 #include "libk/heap.h"
@@ -54,7 +56,9 @@ uint32_t determine_apic_tick_rate();
 } // namespace current_apic
 
 template<bool oneshot = true, bool periodic = false>
-class apic : public timable_device<oneshot, periodic> {
+class apic
+    : public timable_device<oneshot, periodic>
+    , public virtual device {
   public:
     static constexpr uint8_t target_irq = 0xa0;
 
@@ -63,10 +67,10 @@ class apic : public timable_device<oneshot, periodic> {
     static constexpr const char* default_path  = "/";
 
     apic()
-        : timable_device<oneshot, periodic>(
-            device(default_name, default_model, nullptr, 0))
+        : device(default_name, default_model, nullptr, 0)
         , id(current_apic::get_id())
         , apic_rate(current_apic::determine_apic_tick_rate()) {
+        interrupts::vector_override(target_irq, &int_tree_node);
         if constexpr (oneshot && !periodic) {
             // Oneshot mode
             current_apic::get_register(0x320) = target_irq & (~(1 << 17));
@@ -81,6 +85,9 @@ class apic : public timable_device<oneshot, periodic> {
 
         // Register device
         devices::register_device(this, "/", &devices::device_tree);
+
+        // Starts with no task active
+        active.time = ~0;
     }
 
     apic_id  id;
@@ -93,6 +100,8 @@ class apic : public timable_device<oneshot, periodic> {
 
     std_k::min_heap<task> tasks;
     task                  active;
+
+    interrupts::interrupt_tree_node int_tree_node = this;
 
     void push_task(task new_task) {
         // Check if we need to swap out active task
@@ -201,22 +210,24 @@ class apic : public timable_device<oneshot, periodic> {
         push_task(task(to_call, interval, rounds, now() + interval));
     }
 
-    void run() override { // Active task needs to be replaced
+    void run() override {
         if constexpr (!oneshot) return;
-        active.rounds--;
+
+        // Active task needs to be replaced
+        if (active.rounds > 0) { active.rounds--; }
+        if (active.rounds != 0) { active.time += active.interval; }
         std_k::callable<void>* to_be_called = active.target;
 
         // Prepare next task
-        if (tasks.empty() && (active.rounds > 0)) {
+        if (tasks.empty() && (active.rounds != 0)) {
             // Only task anyways
-            active.time += active.interval;
             total_time = active.time;
             set_interrupt_relative(active.interval);
         } else if (tasks.empty()) {
             // No task to replace
             active.time = ~0;
             set_interrupt_relative(0);
-        } else if (active.rounds > 0) {
+        } else if (active.rounds != 0) {
             // Need to return to heap before taking next
             task saved = tasks.top();
             tasks.replace_top(active);
@@ -226,7 +237,8 @@ class apic : public timable_device<oneshot, periodic> {
             set_interrupt_relative(active.interval);
         } else {
             // Just take top from heap
-            active     = tasks.top();
+            active = tasks.top();
+            tasks.pop_top();
             total_time = active.time;
             set_interrupt_relative(active.interval);
         }

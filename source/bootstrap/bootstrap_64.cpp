@@ -279,10 +279,9 @@ void map_region_to(uintptr_t source_address, uintptr_t target_address,
                    size_t size) {
 
     // Ensure that addresses (and size) fall along page lines
-    target_address &= ~(PAGE_SIZE - 1);
-    source_address &= ~(PAGE_SIZE - 1);
-    if (size & (PAGE_SIZE - 1)) { size += PAGE_SIZE; }
-    size &= ~(PAGE_SIZE - 1);
+    size += (target_address % PAGE_SIZE);
+    target_address -= (target_address % PAGE_SIZE);
+    source_address -= (source_address % PAGE_SIZE);
 
     while (size) {
         // Break off into different levels of mapping

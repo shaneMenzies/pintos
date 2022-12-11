@@ -1,7 +1,7 @@
 #ifndef PINTOS_INTERRUPT_TREE_H
 #define PINTOS_INTERRUPT_TREE_H
 
-#include "interrupts.h"
+#include "device/device.h"
 #include "libk/poly_tree.h"
 
 namespace interrupts {

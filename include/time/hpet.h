@@ -6,6 +6,7 @@
 #include "io/io_apic.h"
 #include "libk/functional.h"
 #include "libk/heap.h"
+#include "libk/misc.h"
 #include "system/acpi.h"
 #include "timable_device.h"
 
@@ -276,6 +277,7 @@ struct hpet_comparator
         } else {
             // Just take top from heap
             active = tasks.top();
+            tasks.pop_top();
             set_interrupt_absolute(active.time);
         }
 

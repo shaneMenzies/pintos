@@ -153,16 +153,26 @@ void late_init(multiboot_boot_info* mb_info) {
     // Can now enable interrupts
     enable_interrupts();
 
-    while (1) {
-        asm volatile ("nop");
-    }
-
     // Start Additional threads
     threading::start_threads();
 
-    // Find the boot thread's own scheduler
-    threading::thread_scheduler* scheduler = current_thread()->scheduler;
-    *scheduler = threading::thread_scheduler(current_thread(), 0);
+    // Find current thread
+    logical_core* thread = current_thread();
+
+    // Setup local apic
+    new (&thread->local_apic) apic<true, false>();
+
+    // Find this core's scheduler
+    threading::thread_scheduler* scheduler = thread->scheduler;
+
+    if (scheduler == 0) { asm volatile("cli\n\t hlt"); }
+
+    // Setup the scheduler
+    scheduler
+        = new (scheduler) threading::thread_scheduler(current_thread(), 0);
+
+    // Enter this core's sleep
+    scheduler->sleep();
 
     // Initialization process is finished
     initialized = true;

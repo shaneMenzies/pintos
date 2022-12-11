@@ -30,19 +30,27 @@ struct system_scheduler main_scheduler;
 
 void thread_init() {
 
+    asm volatile("cli\n\t hlt");
+
     // Enable floating point instructions
     fpu_init();
 
     // Load the Interrupt Descriptor Table
     set_idt(interrupts::idt_table, interrupts::IDT_SIZE);
 
+    // Find current thread
+    logical_core* thread = current_thread();
+
+    // Setup local apic
+    new (&thread->local_apic) apic<true, false>();
+
     // Find this core's scheduler
-    thread_scheduler* scheduler = current_thread()->scheduler;
+    thread_scheduler* scheduler = thread->scheduler;
 
     if (scheduler == 0) { asm volatile("cli\n\t hlt"); }
 
     // Setup the scheduler
-    *scheduler = thread_scheduler(current_thread(), 0);
+    scheduler = new (scheduler) thread_scheduler(current_thread(), 0);
 
     // Enter this core's sleep
     scheduler->sleep();

@@ -30,8 +30,6 @@ struct system_scheduler main_scheduler;
 
 void thread_init() {
 
-    asm volatile("cli\n\t hlt");
-
     // Enable floating point instructions
     fpu_init();
 

@@ -9,6 +9,7 @@
 #include "memory/addressing.h"
 #include "memory/chunking_predef.h"
 #include "memory/p_memory.h"
+#include "terminal/terminal.h"
 #include "threading/topology.h"
 #include "time/timer.h"
 
@@ -124,11 +125,14 @@ struct process {
         prepare_wrapper();
     }
 
+    static void init_wrapper(process* target) {
+        active_terminal->tprintf("New Process starting: target: %p\n", target);
+        target->main->call();
+    }
+
     void prepare_wrapper() {
-        saved_state.rip = (uint64_t)(void (*)(process*))[](process * target) {
-            target->main->call();
-        };
-        saved_state.push((uint64_t)this);
+        saved_state.rip = (uint64_t)init_wrapper;
+        saved_state.rdi = (uint64_t)this;
     }
 
     void* operator new(size_t size) {
@@ -198,7 +202,13 @@ struct thread_scheduler {
                                     &scheduling_function, -1);
     }
 
-    process* current_task() { return (tasks[current_task_index]); }
+    process* current_task() {
+        if (tasks.empty()) {
+            return nullptr;
+        } else {
+            return (tasks[current_task_index]);
+        }
+    }
 
     void add_task(process* new_task) {
 
@@ -250,6 +260,7 @@ struct thread_scheduler {
         } else {
 
             threading::process* active_task = target->current_task();
+            if (active_task == nullptr) { return; }
 
             if (!(active_task->priority_count < active_task->priority)) {
                 if (!target->tasks.empty()) {

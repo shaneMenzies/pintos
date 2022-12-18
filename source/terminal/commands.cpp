@@ -74,11 +74,13 @@ int parse_command(const char* command) {
 
     size_t command_size = std_k::strlen(command);
 
-    char* target_command = (char*)malloc(command_size);
+    char* target_command = new char[command_size];
     std_k::strcpy(target_command, command);
 
+    if (command_size == 0) { return 0; }
+
     // Count the number of arguments
-    int num_args = 0;
+    int num_args = 1;
     for (size_t i = 0; i < command_size; i++) {
         if (target_command[i] == ' ') {
             // Space indicates another argument coming afterwards
@@ -91,23 +93,26 @@ int parse_command(const char* command) {
     }
 
     // Get and fill the array of arguments
-    char** arguments = 0;
-    if (num_args) {
-        arguments = (char**)malloc(sizeof(char*) * num_args);
+    char** arguments = new char*[num_args];
 
-        // Find previously placed null characters to fill arguments
-        int next_arg = 0;
-        for (size_t i = 0; i < command_size; i++) {
-            if (target_command[i] == '\0') {
-                i++;
-                arguments[next_arg++] = &(target_command[i]);
-                if (next_arg == num_args) { break; }
-            }
+    // Find previously placed null characters to fill arguments
+    arguments[0] = target_command;
+    int next_arg = 1;
+    for (size_t i = 0; i < command_size; i++) {
+        if (target_command[i] == '\0') {
+            i++;
+            arguments[next_arg++] = &(target_command[i]);
+            if (next_arg == num_args) { break; }
         }
     }
 
     // Now able to run command
-    return run_command(target_command, num_args, arguments);
+    int result = run_command(target_command, num_args, arguments);
+
+    delete[] target_command;
+    delete[] arguments;
+
+    return result;
 }
 
 void new_command(const char* identifier,
@@ -205,15 +210,39 @@ int test_alloc(int argc, char* argv[]) {
 
 int branch(int argc, char* argv[]) {
 
-    if (argc > 0) {
-        auto wrapper = [](char* arg) { parse_command(arg); };
-        std_k::preset_function<void(char*)> task(wrapper, argv[0]);
-        threading::main_scheduler.send_task(
-            new threading::process(2, 1, 1, 0x1000, &task));
-        return 0;
-    } else {
-        return 1;
+    if (argc < 2) { return 1; }
+
+    size_t child_cmd_size = 0;
+    for (int i = 1; i < argc; i++) {
+        child_cmd_size += std_k::strlen(argv[i]);
+        child_cmd_size++;
     }
+
+    char*  child_command = new char[child_cmd_size];
+    size_t cmd_index     = 0;
+    for (int i = 1; i < argc;) {
+        std_k::strcpy(&child_command[cmd_index], argv[i]);
+        cmd_index += std_k::strlen(argv[i]);
+
+        i++;
+        if (i == argc) break;
+
+        child_command[cmd_index] = ' ';
+        cmd_index++;
+    }
+    child_command[cmd_index] = '\0';
+
+    auto wrapper_func = [](char* command) {
+        parse_command(command);
+        delete command;
+    };
+
+    std_k::preset_function<void(const char*)>* task
+        = (std_k::preset_function<void(const char*)>*)new std_k::
+            preset_function<void(char*)>(wrapper_func, child_command);
+    threading::main_scheduler.send_task(
+        new threading::process(2, 1, 1, 0x1000, task));
+    return 0;
 }
 } // namespace commands
 } // namespace kernel

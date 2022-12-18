@@ -277,7 +277,7 @@ void thread_spinlock();
 
 struct processor_state {
     uint64_t rip;
-    uint64_t rflags;
+    uint64_t rflags = 1 << 9;
     uint64_t rsp;
     uint64_t rbp;
 

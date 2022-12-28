@@ -167,10 +167,6 @@ template<typename T> inline T log2(T value) {
 
 pattern_entry<char> cstring_to_pattern(const char* string);
 
-void printf(char* target_buffer, const char* format, ...);
-
-void vprintf(char* target_buffer, const char* format, va_list args);
-
 unsigned int string_to_number(const char* source);
 
 /**

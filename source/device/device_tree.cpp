@@ -10,7 +10,7 @@
 #include "device_tree.h"
 
 #include "device.h"
-#include "libk/misc.h"
+#include "libk/cstring.h"
 #include "libk/string.h"
 
 namespace devices {
@@ -166,7 +166,7 @@ void register_device(device* new_device, const char* path,
     name_buffer.resize(name_buffer.size() + 16);
     while (true) {
         // Convert number to characters
-        std_k::printf(&name_buffer[name_end], "%u", duplicate_count);
+        std_k::sprintf(&name_buffer[name_end], "%u", duplicate_count);
 
         // Check if this name is free
         if (tree->node_at(directory, name_buffer) == nullptr) { break; }
@@ -189,7 +189,7 @@ device* find_device(const char* target_path, unsigned int index,
     path_buffer.resize(path_buffer.size() + 16);
 
     // Convert number to characters
-    std_k::printf(&path_buffer[path_end], "%u", index);
+    std_k::sprintf(&path_buffer[path_end], "%u", index);
 
     // Return value at this path
     device_tree_node* target_node = tree->node_at(path_buffer);

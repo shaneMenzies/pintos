@@ -84,6 +84,7 @@ struct address_space {
             for (int i = 0; i < 512; i++) { target_pdp->data[i] = 0; }
 
             // Set into table(s)
+            // Indices 0-255 cover the user-space
             if (l4_index < 255) {
                 // Copy to all
                 for (size_t i = 0; i < shared_tables.size(); i++) {

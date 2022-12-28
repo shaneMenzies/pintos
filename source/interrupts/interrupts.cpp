@@ -190,6 +190,8 @@ void interrupts_init(acpi::madt_table* madt) {
     set_direct_interrupt(51, INT_GATE_32, test_int);
     set_direct_interrupt(0xa0, INT_GATE_32,
                          (void (*)(interrupt_frame*))apic_int);
+    set_direct_interrupt(0xa1, INT_GATE_32,
+                         (void (*)(interrupt_frame*))yield_int);
 
     // Spurious Interrupts (0xf8 to 0xff)
     for (uint8_t i = 0xf8; i >= 0xf8; i++) {

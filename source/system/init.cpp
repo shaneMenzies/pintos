@@ -16,6 +16,8 @@
 #include "interrupts/interrupts.h"
 #include "io/io.h"
 #include "kernel.h"
+#include "libk/cstring.h"
+#include "libk/random.h"
 #include "memory/addressing.h"
 #include "memory/paging.h"
 #include "memory/x86_tables.h"
@@ -26,7 +28,6 @@
 #include "threading/threading.h"
 #include "time/hpet.h"
 #include "time/timer.h"
-#include "libk/random.h"
 
 #ifdef DEBUG
     #include "debug/debug_build.h"
@@ -44,6 +45,10 @@ void __cxa_pure_virtual() {
 extern "C" {
 
 void _start(multiboot_boot_info* mb_info) {
+
+    // SSE instructions will need a 16-byte aligned stack reference
+    uint64_t old_rsp = get_rsp();
+    if (old_rsp % 0x10) { set_rsp(old_rsp + 0x8); }
 
     early_init(mb_info);
     _init();
@@ -88,7 +93,7 @@ void early_init(multiboot_boot_info* mb_info) {
 
     char format[] = "CR0: %b \r\nCR4: %b \r\nCS: %x \r\nDS: %x\r\n";
 
-    std_k::printf(string_buffer, format, cr0_info, cr4_info, cs_info, ds_info);
+    std_k::sprintf(string_buffer, format, cr0_info, cr4_info, cs_info, ds_info);
 
     io_write_s(string_buffer, IO_ports::COM_1);
 

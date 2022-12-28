@@ -140,6 +140,24 @@ inline uint64_t get_rbp() {
     return value;
 }
 
+inline uint64_t get_rsp() {
+    uint64_t value;
+    asm volatile("\
+        movq %%rsp, %[value]"
+                 : [value] "=r"(value));
+    return value;
+}
+
+inline void set_rbp(uint64_t value) {
+    asm volatile("\
+        movq %[value], %%rbp" ::[value] "g"(value));
+}
+
+inline void set_rsp(uint64_t value) {
+    asm volatile("\
+        movq %[value], %%rsp" ::[value] "g"(value));
+}
+
 inline void jump_64(uint64_t target) {
     asm volatile("\
         jmp *%%rax" ::"a"(target));
@@ -147,9 +165,8 @@ inline void jump_64(uint64_t target) {
 
 inline uint64_t rd_seed() {
     uint64_t value;
-    asm volatile(
-        "0: \t\n"
-        "rdseed %[value] \t\n"
+    asm volatile("0: \t\n"
+                 "rdseed %[value] \t\n"
         "jc 1f \t\n"
         "jmp 0b \t\n"
         "1:  \t\n"

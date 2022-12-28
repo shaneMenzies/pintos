@@ -418,4 +418,27 @@ __attribute__((naked)) void apic_int() {
     asm volatile("sti\n\t");
     asm volatile("iretq \n\t");
 }
+
+extern "C" {
+void real_yield_int(general_regs_state* task_regs,
+                    interrupt_frame*    task_frame) {
+    // Find this core's scheduler
+    threading::thread_scheduler* scheduler = current_thread()->scheduler;
+
+    scheduler->yield_current(task_regs, task_frame);
+
+    send_EOI();
+}
+}
+
+__attribute__((naked)) void yield_int() {
+    asm volatile("cli\n\t");
+    PUSH_GENERAL_REGS();
+    asm volatile("lea (%rsp), %rdi \n\t\
+             lea 0x78(%rsp), %rsi \n\t\
+             call real_yield_int \n\t");
+    POP_GENERAL_REGS();
+    asm volatile("sti\n\t");
+    asm volatile("iretq \n\t");
+}
 } // namespace interrupts

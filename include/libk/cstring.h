@@ -20,6 +20,9 @@ void* memcpy(void* __restrict__ dest, const void* __restrict__ src,
 void* memmove(void* dest, const void* src, size_t count);
 int   memcmp(const void* lhs, const void* rhs, size_t count);
 
+void sprintf(char* target_buffer, const char* format, ...);
+void vsprintf(char* target_buffer, const char* format, va_list args);
+
 } // namespace std_k
 
 #endif

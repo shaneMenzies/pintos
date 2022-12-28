@@ -5,9 +5,11 @@
 #include "libk/asm.h"
 #include "libk/callable.h"
 #include "libk/functional.h"
+#include "libk/ostream.h"
 #include "libk/vector.h"
 #include "memory/addressing.h"
 #include "memory/chunking_predef.h"
+#include "memory/common_region.h"
 #include "memory/p_memory.h"
 #include "terminal/terminal.h"
 #include "threading/topology.h"
@@ -44,8 +46,6 @@ void start_threads();
 
 void end_of_task();
 
-inline process* get_current_task();
-
 enum thread_load_types : uint32_t {
     integer    = 0,
     floating   = 1,
@@ -69,10 +69,7 @@ struct process {
     unsigned int id = 0;
     uint32_t     load_type;
 
-    union {
-        int32_t              value = 0;
-        process_waiting_type type;
-    } waiting;
+    process_waiting_type waiting;
 
     unsigned int priority;
     unsigned int rounds;
@@ -80,6 +77,7 @@ struct process {
     unsigned int priority_count;
 
     std_k::callable<void>* main;
+    std_k::ostream         out_stream;
 
     allocation_manager*         task_allocation = 0;
     paging::address_space*      task_space;
@@ -97,6 +95,7 @@ struct process {
         , priority(target_priority)
         , rounds(rounds)
         , main(target)
+        , out_stream(active_terminal)
         , parent_task(parent) {
 
         // Set appropriate address space for this task
@@ -107,7 +106,7 @@ struct process {
             task_space = parent_task->task_space;
 
             // Set this into the parent task's child tasks
-            parent_task = get_current_task();
+            parent_task = common_region::current_process;
             parent_task->children.push_back(this);
         }
 
@@ -121,12 +120,16 @@ struct process {
         saved_state.rsp
             = (uint64_t)((uintptr_t)malloc(stack_size + 128) + stack_size);
 
+        // Map this process info into the process' address space
+        task_space->map_region_to((uintptr_t)this,
+                                  (uintptr_t)common_region::current_process,
+                                  sizeof(process), task_space_index);
+
         // Set initial target
         prepare_wrapper();
     }
 
     static void init_wrapper(process* target) {
-        active_terminal->tprintf("New Process starting: target: %p\n", target);
         target->main->call();
     }
 
@@ -142,7 +145,7 @@ struct process {
 
     bool check_waiting() {
         // Need to check value of waiting
-        switch (waiting.type) {
+        switch (waiting) {
             case none:
                 // Not waiting for anything
                 return true;
@@ -262,18 +265,39 @@ struct thread_scheduler {
             threading::process* active_task = target->current_task();
             if (active_task == nullptr) { return; }
 
+            size_t previous_index = target->current_task_index;
             if (!(active_task->priority_count < active_task->priority)) {
                 if (!target->tasks.empty()) {
                     // Move to next task
                     active_task->saved_state.save_state(task_regs, frame);
-                    target->current_task_index
-                        = ((target->current_task_index + 1)
-                           < target->tasks.size())
-                              ? (target->current_task_index + 1)
-                              : 0;
+
+                    while (1) {
+                        target->current_task_index++;
+                        if (target->current_task_index > target->tasks.end()) {
+                            target->current_task_index = 0;
+                        }
+
+                        if (target->current_task_index == previous_index) {
+                            // No task ready to replace
+                            frame->return_instruction = (uint64_t)enter_sleep;
+                            return;
+                        }
+
+                        if (target->current_task()->waiting == skip_task) {
+                            continue;
+                        } else if (target->current_task()->waiting == lazy_check
+                                   && !target->current_task()
+                                           ->lazy_timing_check()) {
+                            continue;
+                        } else {
+                            break;
+                        }
+                    }
+
                     target->current_task()->priority_count = 0;
                     target->current_task()->saved_state.load_state(task_regs,
                                                                    frame);
+                    return;
                 } else {
                     // No other tasks, so repeat this one
                     active_task->priority_count = 0;
@@ -282,6 +306,48 @@ struct thread_scheduler {
                 // Staying with this task
                 active_task->priority_count++;
             }
+        }
+    }
+
+    void yield_current(general_regs_state* task_regs, interrupt_frame* frame) {
+
+        threading::process* active_task = current_task();
+        if (active_task == nullptr) { return; }
+
+        size_t previous_index = current_task_index;
+        active_task->saved_state.save_state(task_regs, frame);
+
+        if (tasks.size() > 1) {
+            // Move to next task
+            active_task->saved_state.save_state(task_regs, frame);
+
+            while (1) {
+                current_task_index++;
+                if (current_task_index > tasks.end()) {
+                    current_task_index = 0;
+                }
+
+                if (current_task_index == previous_index) {
+                    // No task ready to replace
+                    frame->return_instruction = (uint64_t)enter_sleep;
+                    return;
+                }
+
+                if (current_task()->waiting == skip_task) {
+                    continue;
+                } else if (current_task()->waiting == lazy_check
+                           && !current_task()->lazy_timing_check()) {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+
+            current_task()->priority_count = 0;
+            current_task()->saved_state.load_state(task_regs, frame);
+        } else {
+            // No other tasks, so enter sleep
+            frame->return_instruction = (uint64_t)enter_sleep;
         }
     }
 };
@@ -314,10 +380,6 @@ struct system_scheduler {
 };
 
 extern struct system_scheduler main_scheduler;
-
-inline process* get_current_task() {
-    return (current_thread()->scheduler->current_task());
-}
 
 } // namespace threading
 

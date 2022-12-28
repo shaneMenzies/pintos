@@ -54,7 +54,7 @@ interrupts::gate_type::INT_GATE_32, (void
         io_write_c(data & 0xff, debug_port);
     }
 
-    int printf(const char* format, ...) {
+    int sprintf(const char* format, ...) {
         va_list args;
         va_start(args, format);
         active_terminal->vtprintf(format, args);

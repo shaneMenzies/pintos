@@ -18,7 +18,7 @@ bool fpu_init() {
     uint64_t cr0_and = ~((1 << 2) | (1 << 3));
     uint64_t cr0_or  = (1 << 1);
 
-    uint64_t cr4_or = ((1 << 9) | (1 << 10));
+    uint64_t cr4_or = ((1 << 9) | (1 << 10) | (1 << 18));
 
     asm volatile(
         "movw $0xffff, %[fpu_status] \n\t\
@@ -30,7 +30,17 @@ bool fpu_init() {
          fnstsw %[fpu_status] \n\t\
          movq %%cr4, %%rdx \n\t\
          or %[cr4_or], %%rdx \n\t\
-         movq %%rdx, %%cr4 \n\t"
+         movq %%rdx, %%cr4 \n\t\
+         push %%rax \n\t\
+         push %%rcx \n\t\
+         push %%rdx \n\t\
+         xor %%rcx, %%rcx \n\t\
+         xgetbv \n\t\
+         or $7, %%eax \n\t\
+         xsetbv \n\t\
+         pop %%rdx \n\t\
+         pop %%rcx \n\t\
+         pop %%rax \n\t"
         : [fpu_status] "+m"(fpu_status)
         : [cr0_and] "g"(cr0_and), [cr0_or] "g"(cr0_or), [cr4_or] "g"(cr4_or)
         : "rdx");

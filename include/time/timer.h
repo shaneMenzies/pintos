@@ -44,6 +44,9 @@ template<typename timestamp_type = uint64_t> class timer {
                                     int                    rounds = -1)
         = 0;
 
+    virtual timestamp convert_sec(double seconds) const = 0;
+    virtual timestamp convert_rate(uint64_t rate) const = 0;
+
     virtual timestamp   now() const   = 0;
     virtual void        run()         = 0;
     virtual inline bool empty() const = 0;

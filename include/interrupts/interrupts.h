@@ -126,6 +126,7 @@ __attribute__((interrupt)) void hpet_periodic_int(interrupt_frame* frame);
 __attribute__((interrupt)) void hpet_oneshot_int(interrupt_frame* frame);
 
 __attribute__((naked)) void apic_int();
+__attribute__((naked)) void yield_int();
 
 [[gnu::always_inline]] inline void
     prepare_call_int(std_k::callable<void>* target) {

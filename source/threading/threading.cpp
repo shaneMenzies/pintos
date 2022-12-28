@@ -132,7 +132,7 @@ bool process::lazy_timing_check() {
 
     if (current_time >= target_time) {
         // Done waiting, can continue with task
-        waiting.type = none;
+        waiting = none;
         return true;
     } else {
         return false;

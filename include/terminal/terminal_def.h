@@ -3,12 +3,13 @@
 
 #include "display/display.h"
 #include "io/keyboard.h"
+#include "libk/streambuf.h"
 
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 
-class terminal {
+class terminal : public std_k::streambuf {
 
     friend class visual_terminal;
 
@@ -18,6 +19,17 @@ class terminal {
     char* end;
 
     keyboard::kb_handler handler;
+
+  protected:
+    // Streambuf overrides
+    virtual int sync() override;
+
+    virtual size_t seekoff(int off, std_k::ios_base::seekdir dir,
+                           std_k::ios_base::openmode side) override;
+    virtual size_t seekpos(size_t pos, std_k::ios_base::openmode side) override;
+
+    virtual int    overflow(char_type value) override;
+    virtual size_t xsputn(const char_type* source, size_t count) override;
 
   public:
     terminal(size_t text_size = 65536);
@@ -29,11 +41,12 @@ class terminal {
 
     virtual void write_c(const char character);
     virtual void write_s(const char* string);
+    virtual void write_n(const char* string, size_t length);
 
     void tprintf(const char* format, ...);
     void vtprintf(const char* format, va_list args);
 
-    virtual void clear();
+    virtual void tclear();
 };
 
 class visual_terminal : public terminal {
@@ -56,15 +69,16 @@ class visual_terminal : public terminal {
                     uint32_t bg = 0, uint8_t ega = 0x0f,
                     double target_fill = 0.9f);
 
-    inline void send_key(char character) {
+    inline void send_key(char character) override {
         write_c(character);
         handler.run_action(character);
     }
     void write_c(const char character) override;
-    void write_s(const char* string) override;
-    void draw_cursor(int state = -1);
+    void         write_s(const char* string) override;
+    virtual void write_n(const char* string, size_t length) override;
+    void         draw_cursor(int state = -1);
 
-    void clear();
+    void tclear() override;
 
     inline void update() {
         fb.show();

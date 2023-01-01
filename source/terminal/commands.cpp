@@ -13,6 +13,7 @@
 #include "libk/cstring.h"
 #include "libk/misc.h"
 #include "libk/sorting.h"
+#include "process_def.h"
 #include "terminal.h"
 #include "threading/threading.h"
 

@@ -11,6 +11,7 @@
 #include "memory/chunking_predef.h"
 #include "memory/common_region.h"
 #include "memory/p_memory.h"
+#include "process_def.h"
 #include "terminal/terminal.h"
 #include "threading/topology.h"
 #include "time/timer.h"
@@ -29,7 +30,6 @@ struct madt_table;
 
 namespace threading {
 struct thread_scheduler;
-struct process;
 
 struct new_thread_startup_info {
     void*  thread_start;
@@ -55,116 +55,6 @@ enum thread_load_types : uint32_t {
     io_bus     = 5,
     system     = 6,
     generic    = 7,
-};
-
-enum process_waiting_type : int32_t {
-    skip_task  = -1,
-    none       = 0,
-    lazy_check = 1,
-};
-
-struct process {
-    processor_state saved_state;
-
-    unsigned int id = 0;
-    uint32_t     load_type;
-
-    process_waiting_type waiting;
-
-    unsigned int priority;
-    unsigned int rounds;
-
-    unsigned int priority_count;
-
-    std_k::callable<void>* main;
-    std_k::ostream         out_stream;
-
-    allocation_manager*         task_allocation = 0;
-    paging::address_space*      task_space;
-    size_t                      task_space_index;
-    paging::page_level_4_table* lvl4_table;
-
-    thread_scheduler*       scheduler;
-    process*                parent_task;
-    std_k::vector<process*> children;
-
-    process(uint8_t load_type, unsigned int target_priority,
-            unsigned int rounds, size_t stack_size,
-            std_k::callable<void>* target, process* parent = 0)
-        : load_type(load_type)
-        , priority(target_priority)
-        , rounds(rounds)
-        , main(target)
-        , out_stream(active_terminal)
-        , parent_task(parent) {
-
-        // Set appropriate address space for this task
-        if (parent_task == nullptr) {
-            task_space = new paging::address_space;
-        } else {
-            // Use parent task's address space
-            task_space = parent_task->task_space;
-
-            // Set this into the parent task's child tasks
-            parent_task = common_region::current_process;
-            parent_task->children.push_back(this);
-        }
-
-        // Need to add new table to address space
-        task_space_index = task_space->get_new_table();
-        lvl4_table       = task_space->shared_tables[task_space_index];
-
-        // Create and set this task's own stack
-        stack_size += 16; // Stack will need space for the scheduler's return
-                          // address, an ending function, and red zone below
-        saved_state.rsp
-            = (uint64_t)((uintptr_t)malloc(stack_size + 128) + stack_size);
-
-        // Map this process info into the process' address space
-        task_space->map_region_to((uintptr_t)this,
-                                  (uintptr_t)common_region::current_process,
-                                  sizeof(process), task_space_index);
-
-        // Set initial target
-        prepare_wrapper();
-    }
-
-    static void init_wrapper(process* target) {
-        target->main->call();
-    }
-
-    void prepare_wrapper() {
-        saved_state.rip = (uint64_t)init_wrapper;
-        saved_state.rdi = (uint64_t)this;
-    }
-
-    void* operator new(size_t size) {
-        // Need to allocate on 16-byte boundary
-        return aligned_alloc(size, 16);
-    }
-
-    bool check_waiting() {
-        // Need to check value of waiting
-        switch (waiting) {
-            case none:
-                // Not waiting for anything
-                return true;
-
-            case skip_task:
-                // Skip this task
-                return false;
-
-            case lazy_check:
-                // Refer to lazy check method
-                return lazy_timing_check();
-
-            default:
-                // Skip task
-                return false;
-        }
-    }
-
-    bool lazy_timing_check();
 };
 
 struct thread_scheduler {
@@ -262,7 +152,7 @@ struct thread_scheduler {
             }
         } else {
 
-            threading::process* active_task = target->current_task();
+            process* active_task = target->current_task();
             if (active_task == nullptr) { return; }
 
             size_t previous_index = target->current_task_index;
@@ -311,7 +201,7 @@ struct thread_scheduler {
 
     void yield_current(general_regs_state* task_regs, interrupt_frame* frame) {
 
-        threading::process* active_task = current_task();
+        process* active_task = current_task();
         if (active_task == nullptr) { return; }
 
         size_t previous_index = current_task_index;

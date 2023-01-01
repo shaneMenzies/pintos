@@ -1,6 +1,7 @@
 #ifndef MEMORY_MAP_H
 #define MEMORY_MAP_H
 
+#include "process_def.h"
 namespace threading {
 struct process;
 }

@@ -7,6 +7,7 @@
 #include "memory/chunking_predef.h"
 #include "memory/p_memory.h"
 #include "memory/paging.h"
+#include "process_def.h"
 #include "system/error.h"
 #include "system/pintos_std.h"
 #include "threading/threading.h"

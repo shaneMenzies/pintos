@@ -17,6 +17,7 @@
 #include "memory/chunking.h"
 #include "memory/p_memory.h"
 #include "memory/paging.h"
+#include "process_def.h"
 #include "system/acpi.h"
 #include "system/pintos_std.h"
 #include "time/timer.h"

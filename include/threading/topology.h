@@ -22,6 +22,7 @@ struct logical_core : public device {
     apic<true, false>            local_apic;
     chunking::chunk_pile*        memory_piles;
     threading::thread_scheduler* scheduler;
+    void*                        sys_stack;
 
     void start_thread(void (*target_code)());
 

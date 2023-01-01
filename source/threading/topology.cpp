@@ -32,6 +32,7 @@ void logical_core::start_thread(void (*target_code)()) {
     *threading::thread_startup_info.thread_target = (void*)(thread_spinlock);
     *threading::thread_startup_info.thread_stack_top
         = (void*)((uintptr_t)malloc(32768) + 32768);
+    sys_stack = threading::thread_startup_info.thread_stack_top;
 
     // Send initialize assertion command
     current_apic::send_apic_command(local_apic.id, 0, 5, false, false, 0);

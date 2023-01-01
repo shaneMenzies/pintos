@@ -14,7 +14,7 @@
 #
 #You should have received a copy of the GNU General Public License
 #along with this program; see the file                     COPYING3.If not see
-# <http: //www.gnu.org/licenses/>.
+#<http: //www.gnu.org/licenses/>.
 #
 
               AUTOMAKE_OPTIONS
@@ -50,15 +50,15 @@ fi`
         ZLIB = @zlibdir @-lz ZLIBINC = @zlibinc @
 
     ELF_CLFAGS
-    = -DELF_LIST_OPTIONS = @elf_list_options @-DELF_SHLIB_LIST_OPTIONS
-    = @elf_shlib_list_options @-DELF_PLT_UNWIND_LIST_OPTIONS =
-        @elf_plt_unwind_list_options @WARN_CFLAGS = @WARN_CFLAGS @NO_WERROR =
-            @NO_WERROR @AM_CFLAGS                 = $(WARN_CFLAGS) $(ELF_CLFAGS)
+    = -DELF_LIST_OPTIONS = @elf_list_options @-DELF_SHLIB_LIST_OPTIONS =
+        @elf_shlib_list_options @-DELF_PLT_UNWIND_LIST_OPTIONS
+    = @elf_plt_unwind_list_options @WARN_CFLAGS = @WARN_CFLAGS @NO_WERROR =
+        @NO_WERROR @AM_CFLAGS = $(WARN_CFLAGS) $(ELF_CLFAGS) $(JANSSON_CFLAGS)
 
 #We put the scripts in the directory $(scriptdir) / ldscripts.
 #We can't put the scripts in $(datadir) because the SEARCH_DIR
 #directives need to be different for native and cross linkers.
-                scriptdir
+            scriptdir
     = $(tooldir)
       / lib
 
@@ -195,16 +195,15 @@ fi`
         .c eelf32ppchaiku.c eelf32ppclinux.c eelf32ppcnto.c eelf32ppcsim
         .c eelf32ppcvxworks.c eelf32ppcwindiss.c eelf32rl78.c eelf32rx
         .c eelf32rx_linux.c eelf32tilegx.c eelf32tilegx_be.c eelf32tilepro
-        .c eelf32vax.c eelf32visium.c eelf32xc16x.c eelf32xc16xl.c eelf32xc16xs
-        .c eelf32xstormy16.c eelf32xtensa.c eelf32z80.c eelf_i386.c eelf_i386_be
-        .c eelf_i386_fbsd.c eelf_i386_haiku.c eelf_i386_ldso.c eelf_i386_pintos
-        .c eelf_i386_sol2.c eelf_i386_vxworks.c eelf_iamcu.c eelf_s390
-        .c eh8300elf.c eh8300elf_linux.c eh8300helf.c eh8300helf_linux
-        .c eh8300hnelf.c eh8300self.c eh8300self_linux.c eh8300snelf
-        .c eh8300sxelf.c eh8300sxelf_linux.c eh8300sxnelf.c ehppaelf
-        .c ehppalinux.c ehppanbsd.c ehppaobsd.c ei386aout.c ei386beos.c ei386bsd
-        .c ei386go32.c ei386lynx.c ei386moss.c ei386msdos.c ei386nto.c ei386pe
-        .c ei386pe_posix.c em32relf.c em32relf_linux.c em32rlelf
+        .c eelf32vax.c eelf32visium.c eelf32xstormy16.c eelf32xtensa.c eelf32z80
+        .c eelf_i386.c eelf_i386_be.c eelf_i386_fbsd.c eelf_i386_pintos
+        .c eelf_i386_haiku.c eelf_i386_ldso.c eelf_i386_sol2.c eelf_i386_vxworks
+        .c eelf_iamcu.c eelf_s390.c eh8300elf.c eh8300elf_linux.c eh8300helf
+        .c eh8300helf_linux.c eh8300hnelf.c eh8300self.c eh8300self_linux
+        .c eh8300snelf.c eh8300sxelf.c eh8300sxelf_linux.c eh8300sxnelf
+        .c ehppaelf.c ehppalinux.c ehppanbsd.c ehppaobsd.c ei386aout.c ei386beos
+        .c ei386bsd.c ei386go32.c ei386lynx.c ei386moss.c ei386msdos.c ei386nto
+        .c ei386pe.c ei386pe_posix.c em32relf.c em32relf_linux.c em32rlelf
         .c em32rlelf_linux.c em68hc11elf.c em68hc11elfb.c em68hc12elf
         .c em68hc12elfb.c em68kelf.c em68kelfnbsd.c em9s12zelf.c emcorepe
         .c emn10200.c emn10300.c emoxiebox.c emsp430X.c emsp430elf.c ends32belf
@@ -243,11 +242,10 @@ fi`
         .c eelf64lppc_fbsd.c eelf64lriscv.c eelf64lriscv_lp64
         .c eelf64lriscv_lp64f.c eelf64ltsmip.c eelf64ltsmip_fbsd.c eelf64mmix
         .c eelf64ppc.c eelf64ppc_fbsd.c eelf64rdos.c eelf64tilegx
-        .c eelf64tilegx_be.c eelf_k1om.c eelf_k1om_fbsd.c eelf_l1om
-        .c eelf_l1om_fbsd.c eelf_mipsel_haiku.c eelf_x86_64
-        .c eelf_x86_64_cloudabi.c eelf_x86_64_fbsd.c eelf_x86_64_haiku
-        .c eelf_x86_64_pintos.c eelf_x86_64_sol2.c ehppa64linux.c ei386pep
-        .c                                                        emmo.c
+        .c eelf64tilegx_be.c eelf_mipsel_haiku.c eelf_x86_64
+        .c eelf_x86_64_cloudabi.c eelf_x86_64_fbsd.c eelf_x86_64_pintos
+        .c eelf_x86_64_haiku.c eelf_x86_64_sol2.c ehppa64linux.c ei386pep.c emmo
+        .c
 
             ALL_64_EMULATIONS
     = $(ALL_64_EMULATION_SOURCES
@@ -772,15 +770,6 @@ $(MAKE)
           / eelf32visium
                 .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
           / $(DEPDIR)
-          / eelf32xc16x
-                .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
-          / eelf32xc16xl
-                .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
-          / eelf32xc16xs
-                .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
           / eelf32xstormy16
                 .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
           / $(DEPDIR)
@@ -791,13 +780,13 @@ $(MAKE)
           / $(DEPDIR)
           / eelf_i386.Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
           / $(DEPDIR)
-          / eelf_i386_pintos
-                .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
           / eelf_i386_be
                 .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
           / $(DEPDIR)
           / eelf_i386_fbsd
+                .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
+          / $(DEPDIR)
+          / eelf_i386_pintos
                 .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
           / $(DEPDIR)
           / eelf_i386_haiku
@@ -1270,16 +1259,6 @@ $(MAKE)
           / eelf64tilegx_be
                 .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
           / $(DEPDIR)
-          / eelf_k1om.Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
-          / eelf_k1om_fbsd
-                .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
-          / eelf_l1om.Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
-          / eelf_l1om_fbsd
-                .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
-          / $(DEPDIR)
           / eelf_mipsel_haiku
                 .Pc @am__quote @ @AMDEP_TRUE @ @am__include @ @am__quote @.
           / $(DEPDIR)
@@ -1322,9 +1301,9 @@ $(MAKE)
             .c ldemul.c ldver.c ldmisc.c ldfile.c ldcref.c plugin.c ldbuildid.c
         ld_new_DEPENDENCIES
     = $(EMULATION_OFILES) $(EMUL_EXTRA_OFILES) $(BFDLIB) $(LIBCTF) $(LIBIBERTY)
-        $(LIBINTL_DEP) ld_new_LDADD
+        $(LIBINTL_DEP) $(JANSSON_LIBS) ld_new_LDADD
     = $(EMULATION_OFILES) $(EMUL_EXTRA_OFILES) $(BFDLIB) $(LIBCTF) $(LIBIBERTY)
-        $(LIBINTL) $(ZLIB)
+        $(LIBINTL) $(ZLIB) $(JANSSON_LIBS)
 
 #Dependency tracking for the generated emulation files.
             EXTRA_ld_new_SOURCES

@@ -18,6 +18,10 @@ void yield();
 // will only continue on this process' time share
 void sleep(double seconds);
 
+std_k::ostream& get_cout() {
+    return common_region::current_process->out_stream;
+}
+
 } // namespace this_process
 
 #endif // PROCESS_INTERFACE_H

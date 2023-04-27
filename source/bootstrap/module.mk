@@ -5,8 +5,10 @@ BSS_SIZE_SCRIPT = $(BASE_DIR)/get_bss_size.sh
 KERNEL_SIZE :=
 BSS_SIZE :=
 
+BOOT_FLAGS = -DKERNEL_SIZE=$(KERNEL_SIZE) -DBSS_SIZE=$(BSS_SIZE)
+BOOT_C_FLAGS = $(BOOT_FLAGS) -I$(INCLUDE_DIR)/$(MODULE) $(TOTAL_C_INCLUDE) -Wfatal-errors -ffreestanding -fno-isolate-erroneous-paths-attribute -nostdlib -z max-page-size=0x1000 -mpreferred-stack-boundary=4 -mno-red-zone $(TARGET_ARCH)  -Wall -Wno-array-bounds -Wno-virtual-move-assign
+BOOT_CXX_FLAGS = $(BOOT_C_FLAGS) $(TOTAL_CXX_INCLUDE) -std=gnu++20 -Wno-pmf-conversions -fno-exceptions -fno-rtti -fno-use-cxa-atexit
 MODULE := bootstrap
-BOOT_FLAGS = -I$(INCLUDE_DIR)/$(MODULE) -DKERNEL_SIZE=$(KERNEL_SIZE) -DBSS_SIZE=$(BSS_SIZE)
 $(info Including $(MODULE))
 $(info Build dir: $(BUILD_DIR)/$(MODULE))
 $(info Source dir: $(SOURCE_DIR)/$(MODULE))
@@ -36,10 +38,10 @@ $(BUILD_DIR)/$(MODULE):
 	mkdir -p $@
 
 $(BUILD_DIR)/$(MODULE)/%.o: $(SOURCE_DIR)/$(MODULE)/%.cpp | $(BUILD_DIR)/$(MODULE) GET_SIZES
-	$(TOOLCHAIN)-g++ $(x64_FLAGS) $(CXX_FLAGS) $(BOOT_FLAGS) -c $< -o $@
+	$(TOOLCHAIN)-g++ $(x64_FLAGS) $(BOOT_CXX_FLAGS) -c $< -o $@
 
 $(BUILD_DIR)/$(MODULE)/%.o: $(SOURCE_DIR)/$(MODULE)/%.c | $(BUILD_DIR)/$(MODULE) GET_SIZES
-	$(TOOLCHAIN)-gcc $(x64_FLAGS) $(C_FLAGS) $(BOOT_FLAGS) -c $< -o $@
+	$(TOOLCHAIN)-gcc  $(x64_FLAGS) $(BOOT_C_FLAGS) -c $< -o $@
 
 $(BUILD_DIR)/$(MODULE)/%.o: $(SOURCE_DIR)/$(MODULE)/%.s | $(BUILD_DIR)/$(MODULE) GET_SIZES
-	$(TOOLCHAIN)-gcc $(x64_FLAGS) $(C_FLAGS) $(MODULE_FLAGS) -c $< -o $@
+	$(TOOLCHAIN)-gcc  $(x64_FLAGS) $(BOOT_FLAGS) -c $< -o $@

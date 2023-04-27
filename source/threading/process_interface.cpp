@@ -19,14 +19,6 @@ void yield() {
     asm volatile("int $0xa1");
 }
 
-void sleep(double seconds) {
-    timer<>::timestamp target_time
-        = get_timer()->now() + get_timer()->convert_sec(seconds);
-
-    // Lazy timing check uses value on top of stack
-    push_64((uint64_t)target_time);
-    common_region::current_process->waiting = threading::lazy_check;
-    yield();
-}
+void sleep(double seconds) {}
 
 } // namespace this_process

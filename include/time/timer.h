@@ -7,8 +7,6 @@
 template<typename timestamp_type = uint64_t> class timer {
   public:
     using timestamp = timestamp_type;
-
-  protected:
     struct task {
 
         std_k::callable<void>* target;
@@ -32,16 +30,15 @@ template<typename timestamp_type = uint64_t> class timer {
         }
     };
 
-  public:
-    virtual void push_task_sec(double seconds, std_k::callable<void>* task,
-                               int rounds = -1)
+    virtual task* push_task_sec(double seconds, std_k::callable<void>* task,
+                                int rounds = -1)
         = 0;
-    virtual void push_task_rate(unsigned long int      rate,
-                                std_k::callable<void>* task, int rounds = -1)
+    virtual task* push_task_rate(unsigned long int      rate,
+                                 std_k::callable<void>* task, int rounds = -1)
         = 0;
-    virtual void push_task_interval(timestamp              interval,
-                                    std_k::callable<void>* task,
-                                    int                    rounds = -1)
+    virtual task* push_task_interval(timestamp              interval,
+                                     std_k::callable<void>* task,
+                                     int                    rounds = -1)
         = 0;
 
     virtual timestamp convert_sec(double seconds) const = 0;

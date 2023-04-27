@@ -8,10 +8,6 @@ namespace this_process {
 // This interface operates on the process mapped into the common region,
 // which should be mapped to whatever process is active
 
-timer<>* get_timer() {
-    return common_region::current_process->scheduler->local_timer;
-}
-
 void yield();
 
 // Sleep will always use lazy timing method,

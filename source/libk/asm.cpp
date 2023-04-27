@@ -69,40 +69,11 @@ void set_gdt(void* table, uint16_t size) {
         void*    base;
     } __attribute__((packed)) GDTR = {size, table};
 
-    struct {
-        unsigned int   offset;
-        unsigned short segment;
-    } dest;
-    dest.offset  = 1;
-    dest.segment = 0x08;
+    asm volatile("lgdtq %[gdtr] \n\t" ::[gdtr] "m"(GDTR) :);
+}
 
-    asm volatile("lgdtq %[gdtr] \n\t\
-                    pushq $0x08 \n\t\
-                    leaq (%%rip), %%rdx \n\t\
-                    addq $8, %%rdx \n\t\
-                    pushq %%rdx \n\t\
-                    movw %%cs, %%ax \n\t\
-                    movw $0x3f8, %%dx \n\t\
-                    outw %%ax, %%dx \n\t\
-                    hlt \n\t\
-                    lretq \n\t\
-                    hlt \n\t\
-                    hlt \n\t\
-                    hlt \n\t\
-                    hlt \n\t\
-                    leaq (%%rip), %%rdx \n\t\
-                    subq $2, %%rdx \n\t\
-                    jmpq *%%rdx \n\t\
-                    xorq %%rax, %%rax \n\t\
-                    movq $0x10, %%rax \n\t\
-                    movw %%ax, %%ds \n\t\
-                    movw %%ax, %%es \n\t\
-                    movw %%ax, %%fs \n\t\
-                    movw %%ax, %%gs \n\t\
-                    movw %%ax, %%ss \n\t"
-                 :
-                 : [gdtr] "m"(GDTR), [dest] "m"(dest)
-                 : "rax", "rdx");
+void set_tss(uint16_t selector) {
+    asm volatile("ltrw %[ist] \n\t" ::[ist] "a"(selector) :);
 }
 
 extern "C" {

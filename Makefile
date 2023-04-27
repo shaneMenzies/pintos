@@ -16,8 +16,8 @@ TOOLCHAIN := x86_64-elf
 
 DEBUG ?= 0
 O_LEVEL := -Og
-TARGET_ARCH :=
-C_FLAGS := $(TOTAL_C_INCLUDE) -Wfatal-errors -ffreestanding -fno-isolate-erroneous-paths-attribute -nostdlib -z max-page-size=0x1000 -mno-red-zone $(TARGET_ARCH) $(O_LEVEL) -Wall -Wextra -g
+TARGET_ARCH := -march=x86-64
+C_FLAGS := $(TOTAL_C_INCLUDE) -Wfatal-errors -ffreestanding -fno-isolate-erroneous-paths-attribute -nostdlib -z max-page-size=0x1000 -mpreferred-stack-boundary=4 -mno-red-zone $(TARGET_ARCH) $(O_LEVEL) -Wall -Wno-array-bounds -Wno-virtual-move-assign -g
 ifeq ($(DEBUG), 1)
 	C_FLAGS += -DDEBUG=1
 endif

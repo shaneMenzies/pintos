@@ -112,12 +112,15 @@ inline void write_msr(uint32_t target_msr, uint64_t new_value) {
 bool fpu_init();
 void set_idt(void* table, uint16_t size);
 void set_gdt(void* table, uint16_t size);
+void set_tss(uint16_t selector);
 
 inline void enable_interrupts() { asm volatile("sti"); };
 
 inline void disable_interrupts() { asm volatile("cli"); };
 
 inline void trigger_breakpoint() { asm volatile("int $3"); };
+
+inline void halt() { asm volatile("hlt"); };
 
 inline uint64_t pop_64() {
     uint64_t value;
@@ -167,28 +170,25 @@ inline uint64_t rd_seed() {
     uint64_t value;
     asm volatile("0: \t\n"
                  "rdseed %[value] \t\n"
-        "jc 1f \t\n"
-        "jmp 0b \t\n"
-        "1:  \t\n"
-        : [value] "=r"(value)
-        :
-        : "cc"
-    );
+                 "jc 1f \t\n"
+                 "jmp 0b \t\n"
+                 "1:  \t\n"
+                 : [value] "=r"(value)
+                 :
+                 : "cc");
     return value;
 }
 
 inline uint64_t rd_rand() {
     uint64_t value;
-    asm volatile(
-        "0: \t\n"
-        "rdrand %[value] \t\n"
-        "jc 1f \t\n"
-        "jmp 0b \t\n"
-        "1:  \t\n"
-        : [value] "=r"(value)
-        :
-        : "cc"
-    );
+    asm volatile("0: \t\n"
+                 "rdrand %[value] \t\n"
+                 "jc 1f \t\n"
+                 "jmp 0b \t\n"
+                 "1:  \t\n"
+                 : [value] "=r"(value)
+                 :
+                 : "cc");
     return value;
 }
 
@@ -262,28 +262,6 @@ inline uint32_t in_dword(uint16_t port) {
 };
 
 inline void io_wait() { out_byte(0, 0x80); };
-
-inline bool try_lock(bool* target) {
-    bool result;
-    asm volatile("lock cmpxchgb %[value], (%%rcx) \n\t\
-                   movb %%al, %[result]"
-                 : [result] "=m"(result)
-                 : [target] "c"(target),
-                   "a"((unsigned char)0), [value] "d"((unsigned char)1));
-
-    return (!result);
-}
-
-inline void get_lock(bool* target) {
-
-    while (1) {
-        if (try_lock(target)) {
-            return;
-        } else {
-            asm volatile("nop");
-        }
-    }
-}
 
 extern "C" {
 extern volatile bool release_spinlock;

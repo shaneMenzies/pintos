@@ -33,7 +33,7 @@ template<class T> class vector {
     }
     ~vector() {
         for (size_t i = 0; i < current_size; i++) { current_array[i].~T(); }
-        delete current_array;
+        if (current_array != nullptr) delete[] current_array;
     };
 
     size_t           size() const { return current_size; };

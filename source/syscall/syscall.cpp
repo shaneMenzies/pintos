@@ -44,7 +44,7 @@ __attribute__((indirect_return)) uint64_t syscall_handler() {
                    [saved_r11] "=g"(saved_r11));
 
     // Swap to system stack
-    uint64_t system_stack = (uint64_t)current_thread()->sys_stack;
+    uint64_t system_stack = (uint64_t)current_thread()->system_stack;
     uint64_t saved_rsp;
     uint64_t saved_rbp;
     asm volatile("movq %%rsp, %[saved_rsp] \n\t"
@@ -71,14 +71,14 @@ __attribute__((indirect_return)) uint64_t syscall_handler() {
     id = syscall_index[id](SYSCALL_ARG_NAMES);
 
     // Swap back to caller stack
-    asm volatile("popq %%rbp \n\t"
-                 "popq %%rsp \n\t");
+    asm volatile("popq %rbp \n\t"
+                 "popq %rsp \n\t");
 
     // Restore return info and return
     asm volatile("movq %[result], %%rax \n\t"
                  "movq %[saved_rcx], %%rcx \n\t"
                  "movq %[saved_r11], %%r11 \n\t"
-                 "sysret \n\t" ::[saved_rcx] "g"(saved_rcx),
+                 "sysretq \n\t" ::[saved_rcx] "g"(saved_rcx),
                  [saved_r11] "g"(saved_r11), [result] "g"(id));
 }
 

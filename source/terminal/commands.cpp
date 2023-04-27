@@ -13,8 +13,9 @@
 #include "libk/cstring.h"
 #include "libk/misc.h"
 #include "libk/sorting.h"
-#include "process_def.h"
+#include "memory/chunking.h"
 #include "terminal.h"
+#include "threading/process_def.h"
 #include "threading/threading.h"
 
 namespace kernel {
@@ -25,12 +26,14 @@ unsigned int    num_commands    = 0;
 unsigned int    max_commands    = 0;
 command_entry** command_entries = 0;
 
-constexpr unsigned int num_kernel_commands = 5;
+constexpr unsigned int num_kernel_commands = 7;
 const char*            kernel_command_identifiers[num_kernel_commands]
-    = {"echo", "test", "cpuinfo", "test_alloc", "branch"};
+    = {"echo",   "test",     "cpu_stat", "test_alloc",
+       "branch", "mem_stat", "proc_stat"};
 int (*kernel_command_pointers[num_kernel_commands])(int argc, char** argv)
-    = {commands::echo, commands::test, commands::cpuinfo, commands::test_alloc,
-       commands::branch};
+    = {commands::echo,       commands::test,   commands::cpu_stat,
+       commands::test_alloc, commands::branch, commands::mem_stat,
+       commands::proc_stat};
 
 void cmd_init() {
 
@@ -188,7 +191,7 @@ int test(int argc, char* argv[]) {
     return 0;
 }
 
-int cpuinfo(int argc, char* argv[]) {
+int cpu_stat(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
@@ -202,7 +205,13 @@ int cpuinfo(int argc, char* argv[]) {
 
 int test_alloc(int argc, char* argv[]) {
     if (argc > 0) {
-        malloc(std_k::string_to_number(argv[0]));
+        size_t size = std_k::string_to_number(argv[1]);
+        active_terminal->tprintf("Allocating %u(0x%x) bytes.\n",
+                                 (unsigned int)size, (unsigned int)size);
+
+        void* allocated = malloc(size);
+        active_terminal->tprintf("Received memory at %p.\n", allocated);
+        free(allocated);
         return 0;
     } else {
         return 1;
@@ -241,9 +250,73 @@ int branch(int argc, char* argv[]) {
     std_k::preset_function<void(const char*)>* task
         = (std_k::preset_function<void(const char*)>*)new std_k::
             preset_function<void(char*)>(wrapper_func, child_command);
-    threading::main_scheduler.send_task(
-        new threading::process(2, 1, 1, 0x1000, task));
+    threading::system_scheduler.add_process(new threading::process(1, 1, task));
     return 0;
 }
+
+int mem_stat(int argc, char* argv[]) {
+
+    active_terminal->tprintf("Free Memory:\n");
+    size_t total = 0;
+
+    // Print for each CPU thread
+    active_terminal->tprintf("\tPre-allocated by Processor:\n");
+    for (unsigned int i = 0; i < topology.num_logical; i++) {
+        // Total of all pre-allocated chunks
+        size_t current_total = 0;
+        for (unsigned int j = 0; j < chunking::NUM_MEMORY_PILES; j++) {
+            current_total += (topology.threads[i].memory_piles[j].chunk_size
+                              * topology.threads[i].memory_piles[j].size());
+        }
+
+        active_terminal->tprintf("\t\tThread #%u - 0x%x bytes\n", i,
+                                 current_total);
+        total += current_total;
+    }
+    active_terminal->tprintf("\t\tTotal Pre-allocated - 0x%x bytes\n\n", total);
+
+    // Print reservoir contents
+    size_t reservoir_total = 0;
+    for (unsigned int i = 0; i < chunking::NUM_MEMORY_PILES; i++) {
+        reservoir_total += (chunking::memory_reservoirs[i].chunk_size
+                            * chunking::memory_reservoirs[i].size());
+    }
+    active_terminal->tprintf("\tAvailable in Reservoirs - 0x%x bytes\n",
+                             reservoir_total);
+    total += reservoir_total;
+
+    active_terminal->tprintf("Total Free: 0x%x bytes\n", total);
+
+    return 0;
+}
+
+int proc_stat(int argc, char* argv[]) {
+
+    // Print what each processor is doing
+    active_terminal->tprintf("Processor State:\n");
+    for (unsigned int i = 0; i < topology.num_logical; i++) {
+        logical_core* current_thread = &topology.threads[i];
+
+        active_terminal->tprintf("\tThread #%u - ", i);
+        if (current_thread->scheduler->current_task == nullptr) {
+            active_terminal->tprintf("Idle\n");
+        } else {
+            active_terminal->tprintf(
+                "Active (pid = %u)\n",
+                current_thread->scheduler->current_task->pid);
+        }
+    }
+
+    // Print scheduler run queue
+    active_terminal->tprintf("\nWaiting Processes:\n");
+    for (unsigned int i = 0; i < threading::system_scheduler.size(); i++) {
+        active_terminal->tprintf(
+            "\t#%u - pid %u\n", i,
+            threading::system_scheduler.run_queue.base[i]->pid);
+    }
+
+    return 0;
+}
+
 } // namespace commands
 } // namespace kernel

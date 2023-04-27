@@ -1,7 +1,6 @@
 #ifndef PINTOS_PROCESS_DEF_H
 #define PINTOS_PROCESS_DEF_H
 
-#include "allocation_manager.h"
 #include "interrupts/interrupts.h"
 #include "libk/asm.h"
 #include "libk/callable.h"
@@ -21,13 +20,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace threading {
-enum process_waiting_type : int32_t {
-    skip_task  = -1,
-    none       = 0,
-    lazy_check = 1,
-};
+#define DEFAULT_STACK_SIZE 8192
 
+class allocation_manager;
+
+namespace threading {
 struct processor_state {
     uint64_t rip;
     uint64_t rflags = 1 << 9;
@@ -172,70 +169,34 @@ struct processor_state {
 struct process {
     processor_state saved_state;
 
-    unsigned int id = 0;
-    uint32_t     load_type;
+    uint64_t pid = 0;
 
-    process_waiting_type waiting;
+    struct config_t {
+        bool wait_on_end = false;
+    } config;
 
     unsigned int priority;
     unsigned int rounds;
-
-    unsigned int priority_count;
 
     std_k::callable<void>* main;
     std_k::ostream         out_stream;
 
     allocation_manager*         task_allocation = 0;
     paging::address_space*      task_space;
-    size_t                      task_space_index;
     paging::page_level_4_table* lvl4_table;
 
-    thread_scheduler*       scheduler;
     process*                parent_task;
     std_k::vector<process*> children;
 
-    process(uint8_t load_type, unsigned int target_priority,
-            unsigned int rounds, size_t stack_size,
-            std_k::callable<void>* target, process* parent = 0)
-        : load_type(load_type)
-        , priority(target_priority)
-        , rounds(rounds)
-        , main(target)
-        , out_stream(active_terminal)
-        , parent_task(parent) {
+    void* user_stack;
+    void* kernel_stack;
 
-        // Set appropriate address space for this task
-        if (parent_task == nullptr) {
-            task_space = new paging::address_space;
-        } else {
-            // Use parent task's address space
-            task_space = parent_task->task_space;
+    process(unsigned int target_priority, unsigned int rounds,
+            std_k::callable<void>* target, process* parent = 0);
 
-            // Set this into the parent task's child tasks
-            parent_task = common_region::current_process;
-            parent_task->children.push_back(this);
-        }
+    ~process();
 
-        // Need to add new table to address space
-        task_space_index = task_space->get_new_table();
-        lvl4_table       = task_space->shared_tables[task_space_index];
-
-        // Create and set this task's own stack
-        stack_size += 16; // Stack will need space for the scheduler's return
-                          // address, an ending function, and red zone below
-        saved_state.rsp
-            = (uint64_t)((uintptr_t)malloc(stack_size + 128) + stack_size);
-
-        // Map this process info into the process' address space
-        task_space->map_region_to((uintptr_t)this,
-                                  (uintptr_t)common_region::current_process,
-                                  sizeof(process), task_space_index);
-
-        // Set initial target
-        prepare_wrapper();
-    }
-
-    static void init_wrapper(process* target) { target->main->call(); }
+    static void init_wrapper(process* target);
 
     void prepare_wrapper() {
         saved_state.rip = (uint64_t)init_wrapper;
@@ -246,29 +207,6 @@ struct process {
         // Need to allocate on 16-byte boundary
         return aligned_alloc(size, 16);
     }
-
-    bool check_waiting() {
-        // Need to check value of waiting
-        switch (waiting) {
-            case none:
-                // Not waiting for anything
-                return true;
-
-            case skip_task:
-                // Skip this task
-                return false;
-
-            case lazy_check:
-                // Refer to lazy check method
-                return lazy_timing_check();
-
-            default:
-                // Skip task
-                return false;
-        }
-    }
-
-    bool lazy_timing_check();
 };
 } // namespace threading
 

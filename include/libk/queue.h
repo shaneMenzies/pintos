@@ -9,6 +9,8 @@ namespace std_k {
 template<class T> class queue {
 
   public:
+    deque<T> base;
+
     queue()
         : base() {};
     queue(size_t initial_capacity)
@@ -30,10 +32,7 @@ template<class T> class queue {
 
     queue& operator=(const queue& x) { base = (const deque<T>&)x.base; }
 
-    queue& operator=(queue&& x) { base = (deque<T> &&) x.base; }
-
-  private:
-    deque<T> base;
+    queue& operator=(queue&& x) { base = (deque<T>&&)x.base; }
 };
 } // namespace std_k
 

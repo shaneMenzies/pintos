@@ -130,9 +130,7 @@ struct sub_mem_region {
         }
     }
 
-    void* operator new(size_t size) {
-        return aligned_alloc(size, SUB_PAGE_INFO_SIZE_PER_BYTE);
-    }
+    void* operator new(size_t size) { return aligned_alloc(size, PAGE_SIZE); }
 
     void* allocate_space(size_t size) {
 
@@ -178,10 +176,10 @@ struct sub_mem_region {
         info.return_space(target_index);
     }
 
-} __attribute__((packed));
+} __attribute__((packed, aligned(PAGE_SIZE)));
 
 class sub_mem_manager {
-    sub_mem_region first_region;
+    sub_mem_region first_region __attribute__((aligned(PAGE_SIZE)));
     uintptr_t      earliest_address;
     uintptr_t      latest_address;
 

@@ -216,15 +216,14 @@ void initialize_table_mapping(page_level_4_table* level_4_table) {
     // allocated
 }
 
-void address_space::identity_map_page(uintptr_t target_address, size_t index) {
-    *(get_page(target_address, index))
-        = ((target_address & real_address_bitmask) | p_present
-           | p_write_enabled);
+void address_space::identity_map_page(uintptr_t target_address) {
+    *(get_page(target_address)) = ((target_address & real_address_bitmask)
+                                   | p_present | p_write_enabled);
     refresh_page((void*)target_address);
 }
 
-void address_space::identity_map_pt(uintptr_t target_address, size_t index) {
-    page_table* target_table = get_page_table(target_address, index);
+void address_space::identity_map_pt(uintptr_t target_address) {
+    page_table* target_table = get_page_table(target_address);
 
     // Loop through entries of the target table
     target_address = (target_address - (target_address % page_table_size))
@@ -236,10 +235,9 @@ void address_space::identity_map_pt(uintptr_t target_address, size_t index) {
     }
 }
 
-void address_space::identity_map_pd(uintptr_t target_address, size_t index) {
+void address_space::identity_map_pd(uintptr_t target_address) {
     uintptr_t             original_address = target_address;
-    page_directory_table* target_directory
-        = get_page_directory(target_address, index);
+    page_directory_table* target_directory = get_page_directory(target_address);
 
     // Loop through the page tables
     target_address = (target_address - (target_address % page_directory_size))
@@ -252,7 +250,7 @@ void address_space::identity_map_pd(uintptr_t target_address, size_t index) {
             // Doesn't exist, need to create it first
             uintptr_t p_address = palloc();
             target_table = &pt_tables[(original_address / page_table_size)];
-            map_page_to(p_address, (uintptr_t)target_table, index);
+            map_page_to(p_address, (uintptr_t)target_table);
             for (int j = 0; j < 512; j++) { target_table->data[j] = 0; }
 
             target_directory->data[i]
@@ -268,8 +266,7 @@ void address_space::identity_map_pd(uintptr_t target_address, size_t index) {
     }
 }
 
-void address_space::identity_map_region(uintptr_t target_address, size_t size,
-                                        size_t index) {
+void address_space::identity_map_region(uintptr_t target_address, size_t size) {
 
     // Ensure that addresses (and size) fall along page lines
     size += (target_address % PAGE_SIZE);
@@ -280,7 +277,7 @@ void address_space::identity_map_region(uintptr_t target_address, size_t size,
         if ((size > page_directory_size)
             && ((target_address & (page_directory_size - 1)) == 0)) {
             // Map next page directory
-            identity_map_pd(target_address, index);
+            identity_map_pd(target_address);
             target_address += page_directory_size;
             if (size > page_directory_size) {
                 size -= page_directory_size;
@@ -291,7 +288,7 @@ void address_space::identity_map_region(uintptr_t target_address, size_t size,
         } else if ((size > page_table_size)
                    && ((target_address & (page_table_size - 1)) == 0)) {
             // Map next page table
-            identity_map_pt(target_address, index);
+            identity_map_pt(target_address);
             target_address += page_table_size;
             if (size > page_table_size) {
                 size -= page_table_size;
@@ -301,7 +298,7 @@ void address_space::identity_map_region(uintptr_t target_address, size_t size,
 
         } else {
             // Map next page
-            identity_map_page(target_address, index);
+            identity_map_page(target_address);
             target_address += PAGE_SIZE;
             if (size > PAGE_SIZE) {
                 size -= PAGE_SIZE;
@@ -313,19 +310,16 @@ void address_space::identity_map_region(uintptr_t target_address, size_t size,
 }
 
 void address_space::map_page_to(uintptr_t source_address,
-                                uintptr_t target_address, size_t index,
-                                bool lock_override) {
-    *(get_page(target_address, index, lock_override))
+                                uintptr_t target_address, bool lock_override) {
+    *(get_page(target_address, lock_override))
         = ((source_address & real_address_bitmask) | p_present
            | p_write_enabled);
     refresh_page((void*)target_address);
 }
 
 void address_space::map_pt_to(uintptr_t source_address,
-                              uintptr_t target_address, size_t index,
-                              bool lock_override) {
-    page_table* target_table
-        = get_page_table(target_address, index, lock_override);
+                              uintptr_t target_address, bool lock_override) {
+    page_table* target_table = get_page_table(target_address, lock_override);
 
     // Loop through entries of the target table
     source_address = (source_address - (source_address % page_table_size))
@@ -338,10 +332,9 @@ void address_space::map_pt_to(uintptr_t source_address,
 }
 
 void address_space::map_pd_to(uintptr_t source_address,
-                              uintptr_t target_address, size_t index,
-                              bool lock_override) {
+                              uintptr_t target_address, bool lock_override) {
     page_directory_table* target_directory
-        = get_page_directory(target_address, index, lock_override);
+        = get_page_directory(target_address, lock_override);
 
     // Loop through the page tables
     source_address = (source_address - (source_address % page_directory_size))
@@ -354,8 +347,7 @@ void address_space::map_pd_to(uintptr_t source_address,
             // Doesn't exist, need to create it first
             uintptr_t p_address = (uintptr_t)palloc(lock_override);
             target_table = &pt_tables[(target_address / page_table_size)];
-            map_page_to(p_address, (uintptr_t)target_table, index,
-                        lock_override);
+            map_page_to(p_address, (uintptr_t)target_table, lock_override);
             for (int j = 0; j < 512; j++) { target_table->data[j] = 0; }
 
             target_directory->data[i]
@@ -373,7 +365,7 @@ void address_space::map_pd_to(uintptr_t source_address,
 
 void address_space::map_region_to(uintptr_t source_address,
                                   uintptr_t target_address, size_t size,
-                                  size_t index, bool lock_override) {
+                                  bool lock_override) {
 
     // Ensure that addresses (and size) fall along page lines
     size += (target_address % PAGE_SIZE);
@@ -385,7 +377,7 @@ void address_space::map_region_to(uintptr_t source_address,
         if ((size > page_directory_size)
             && ((target_address & (page_directory_size - 1)) == 0)) {
             // Map next page directory
-            map_pd_to(source_address, target_address, index, lock_override);
+            map_pd_to(source_address, target_address, lock_override);
             source_address += page_directory_size;
             target_address += page_directory_size;
             if (size > page_directory_size) {
@@ -397,7 +389,7 @@ void address_space::map_region_to(uintptr_t source_address,
         } else if ((size > page_table_size)
                    && ((target_address & (page_table_size - 1)) == 0)) {
             // Map next page table
-            map_pt_to(source_address, target_address, index, lock_override);
+            map_pt_to(source_address, target_address, lock_override);
             source_address += page_table_size;
             target_address += page_table_size;
             if (size > page_table_size) {
@@ -408,7 +400,7 @@ void address_space::map_region_to(uintptr_t source_address,
 
         } else {
             // Map next page
-            map_page_to(source_address, target_address, index, lock_override);
+            map_page_to(source_address, target_address, lock_override);
             source_address += PAGE_SIZE;
             target_address += PAGE_SIZE;
             if (size > PAGE_SIZE) {
@@ -425,7 +417,7 @@ void kernel_only_address_space::initialize() {
     new (&sub_page_memory) sub_mem_manager();
 
     next_alloc_address
-            = (void*)(((uintptr_t)&kernel_end & ~(PAGE_SIZE - 1)) + PAGE_SIZE);
+        = (void*)(((uintptr_t)&kernel_end & ~(PAGE_SIZE - 1)) + PAGE_SIZE);
 
     // Need to make sure that all kernel space PDPs exist
     //      PDP indices 256-509

@@ -4,13 +4,15 @@
 #include "addressing.h"
 #include "libk/callable.h"
 #include "libk/functional.h"
+#include "libk/mutex.h"
 #include "memory/chunking_predef.h"
 #include "memory/p_memory.h"
 #include "memory/paging.h"
-#include "process_def.h"
 #include "system/error.h"
 #include "system/pintos_std.h"
+#include "threading/process_def.h"
 #include "threading/threading.h"
+#include "threading/topology.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -56,20 +58,21 @@ struct chunk_reservoir {
     chunk* last;
     chunk* end;
 
-    bool access_lock;
-    bool can_free_reservoir;
+  private:
+    std_k::mutex access_lock;
+    bool         can_free_reservoir;
 
+  public:
     chunk_reservoir()
         : pile_index(pile_index)
         , chunk_size(chunk_size)
         , start(start)
         , last(last)
         , end(end)
-        , access_lock(access_lock)
+        , access_lock()
         , can_free_reservoir(can_free_reservoir) {}
     chunk_reservoir(unsigned int pile_index)
         : pile_index(pile_index)
-        , access_lock(false)
         , can_free_reservoir(false) {
         chunk_size = (PAGE_SIZE << (pile_index * 4));
 
@@ -78,18 +81,20 @@ struct chunk_reservoir {
         end   = &reservoir_chunks[pile_index + 1][0];
     }
 
+    int size() { return (last - start) + 1; }
+
     chunk get_chunk(bool lock_override = false);
 
     void get_chunks(int num_chunks, chunk* target_buffer,
                     bool lock_override = false) {
 
-        if (!lock_override) get_lock(&access_lock);
+        if (!lock_override) access_lock.lock();
 
         for (int i = 0; i < num_chunks; i++) {
             target_buffer[i] = get_chunk(true);
         }
 
-        if (!lock_override) access_lock = false;
+        if (!lock_override) access_lock.unlock();
 
         return;
     }
@@ -98,7 +103,7 @@ struct chunk_reservoir {
 
         if (new_chunk.size == 0) { return; }
 
-        if (!lock_override) { get_lock(&access_lock); }
+        if (!lock_override) { access_lock.lock(); }
 
         // Calculate new position
         chunk* new_position = (chunk*)((uintptr_t)last + sizeof(chunk));
@@ -138,17 +143,17 @@ struct chunk_reservoir {
         last  = (chunk*)((uintptr_t)last + sizeof(chunk));
         *last = new_chunk;
 
-        if (!lock_override) { access_lock = false; }
+        if (!lock_override) { access_lock.unlock(); }
     }
 
     void add_chunks(chunk* new_chunks, int num_chunks,
                     bool lock_override = false) {
 
-        if (!lock_override) get_lock(&access_lock);
+        if (!lock_override) access_lock.lock();
 
         for (int i = 0; i < num_chunks; i++) { add_chunk(new_chunks[i], true); }
 
-        if (!lock_override) access_lock = false;
+        if (!lock_override) access_lock.unlock();
     }
 };
 
@@ -184,15 +189,21 @@ struct chunk_pile {
     unsigned int pile_index = 0;
     size_t       chunk_size = 0;
 
-    chunk               chunks[CHUNKS_PER_PILE];
-    int                 next_chunk          = -1;
-    threading::process* refresh_task        = 0;
-    bool                refresh_task_active = false;
-    bool                access_lock         = false;
+  private:
+    chunk                                     chunks[CHUNKS_PER_PILE];
+    int                                       next_chunk   = -1;
+    threading::process*                       refresh_task = 0;
+    std_k::mutex                              refresh_task_active;
+    std_k::preset_function<void(chunk_pile&)> refresh_task_call;
 
-    chunk_pile() {};
+    std_k::mutex access_lock;
+
+  public:
+    chunk_pile()
+        : refresh_task_call(refill_chunks, *this) {};
     chunk_pile(unsigned int pile_index)
-        : pile_index(pile_index) {
+        : pile_index(pile_index)
+        , refresh_task_call(refill_chunks, *this) {
 
         // Set chunk size
         chunk_size = (PAGE_SIZE << (pile_index * 4));
@@ -202,11 +213,17 @@ struct chunk_pile {
             chunks[i] = memory_reservoirs[pile_index].get_chunk();
             if (chunks[i].size) { next_chunk = i; }
         }
+
+        // Create refill process
+        refresh_task = new threading::process(4, 1, &refresh_task_call);
+        refresh_task->config.wait_on_end = true;
     }
+
+    int size() { return (next_chunk + 1); }
 
     static void refill_chunks(chunk_pile& target) {
 
-        get_lock(&target.access_lock);
+        target.access_lock.lock();
 
         while (target.next_chunk < (int)(CHUNKS_PER_PILE - 1)) {
             target.next_chunk++;
@@ -218,15 +235,14 @@ struct chunk_pile {
             }
         }
 
-        // delete refresh_task
-        target.refresh_task_active = false;
-        target.access_lock         = false;
+        target.refresh_task_active.unlock();
+        target.access_lock.unlock();
     }
 
     chunk get_chunk(bool pile_lock_override      = false,
                     bool reservoir_lock_override = false) {
 
-        if (!pile_lock_override) { get_lock(&access_lock); }
+        if (!pile_lock_override) { access_lock.lock(); }
 
         // Get the next chunk
         chunk value;
@@ -235,41 +251,21 @@ struct chunk_pile {
             value = chunks[next_chunk];
             next_chunk--;
 
-            if (!pile_lock_override) { access_lock = false; }
+            if (!pile_lock_override) { access_lock.unlock(); }
         } else {
-            if (!pile_lock_override) { access_lock = false; }
+            if (!pile_lock_override) { access_lock.unlock(); }
 
             // Try to grab from reservoir
             value = memory_reservoirs[pile_index].get_chunk(
                 reservoir_lock_override);
-
-            if (value.size == 0) {
-                // None available in reservoir, search other threads' piles
-                for (unsigned int thread = 0; thread < topology.num_logical;
-                     thread++) {
-                    chunk_pile* target_pile
-                        = &topology.threads[0].memory_piles[pile_index];
-                    if (target_pile != this) {
-                        value = target_pile->get_chunk();
-                        if (value.size != 0) { break; }
-                    }
-                }
-
-                if (value.size == 0) {
-                    // None found
-                    return chunk(0, 0);
-                }
-            }
         }
 
         // Send a thread to refill chunks
         if (!pile_lock_override && next_chunk < (int)(CHUNKS_PER_PILE / 4)
-            && !refresh_task_active) {
-            std_k::preset_function<typeof(refill_chunks)> task(refill_chunks,
-                                                               *this);
-            if (try_lock(&refresh_task_active)) {
-                refresh_task = new threading::process(2, 4, 1, 0x100, &task);
-                threading::main_scheduler.send_task(refresh_task);
+            && !refresh_task_active.is_locked()) {
+            if (refresh_task_active.try_lock()) {
+                refresh_task->rounds = 1;
+                threading::system_scheduler.add_process(refresh_task);
             }
         }
 
@@ -280,7 +276,7 @@ struct chunk_pile {
                     bool pile_lock_override      = false,
                     bool reservoir_lock_override = false) {
 
-        if (!pile_lock_override) get_lock(&access_lock);
+        if (!pile_lock_override) access_lock.lock();
 
         for (int i = 0; i < num_chunks; i++) {
             target_buffer[i] = get_chunk(true, reservoir_lock_override);
@@ -288,14 +284,14 @@ struct chunk_pile {
 
         // Send a thread to refill chunks
         if (!pile_lock_override && next_chunk < (int)(CHUNKS_PER_PILE / 4)
-            && !refresh_task_active) {
-            std_k::preset_function<typeof(refill_chunks)> task(refill_chunks,
-                                                               *this);
-            if (try_lock(&refresh_task_active)) {
-                refresh_task = new threading::process(2, 4, 1, 0x100, &task);
-                threading::main_scheduler.send_task(refresh_task);
+            && !refresh_task_active.is_locked()) {
+            if (refresh_task_active.try_lock()) {
+                refresh_task->rounds = 1;
+                threading::system_scheduler.add_process(refresh_task);
             }
         }
+
+        if (!pile_lock_override) access_lock.unlock();
 
         return;
     }

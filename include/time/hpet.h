@@ -7,6 +7,7 @@
 #include "libk/functional.h"
 #include "libk/heap.h"
 #include "libk/misc.h"
+#include "libk/mutex.h"
 #include "system/acpi.h"
 #include "timable_device.h"
 
@@ -134,7 +135,7 @@ struct hpet_comparator
         }
 
         // Set active task to none, and set timing mode
-        active.time = ~(0UL);
+        active->time = ~(0UL);
         if constexpr (oneshot & !periodic) {
             target[0] = (target[0] & ~0b1000);
         }
@@ -160,24 +161,34 @@ struct hpet_comparator
     bool                            periodic_capable;
     interrupts::interrupt_tree_node int_tree_node = this;
 
+    std_k::mutex lock;
+
     std_k::preset_function<void(hpet_comparator*)> int_target;
 
-    std_k::min_heap<task> tasks;
-    task                  active;
+    struct task_pointer_less {
+        task_pointer_less() {}
+        bool operator()(task* left, task* right) { return *left < *right; }
+    };
+    std_k::heap<task*, task_pointer_less> tasks;
+    task*                                 active;
 
     void set_comparator_value(uint64_t value) { target[1] = value; }
-    void push_task(task new_task) {
+    void push_task(task* new_task) {
+        lock.lock();
+
         // Check if we need to swap out active task
-        if (active.time > new_task.time) {
+        if (active->time > new_task->time) {
             // Swap tasks then adjust comparator
-            if (active.time != ~0UL) tasks.push(active);
+            if (active->time != ~0UL) tasks.push(active);
             active = new_task;
 
-            set_interrupt_absolute(active.time);
+            set_interrupt_absolute(active->time);
         } else {
             // Just add to heap
             tasks.push(new_task);
         }
+
+        lock.unlock();
     }
 
   public:
@@ -235,59 +246,93 @@ struct hpet_comparator
     // endregion
 
     // region timer
-    void push_task_sec(double seconds, std_k::callable<void>* to_call,
-                       int rounds) override {
-        timestamp interval = convert_sec(seconds);
-        push_task(task(to_call, interval, rounds, now() + interval));
-    }
-    void push_task_rate(unsigned long rate, std_k::callable<void>* to_call,
+    task* push_task_sec(double seconds, std_k::callable<void>* to_call,
                         int rounds) override {
-        timestamp interval = convert_rate(rate);
-        push_task(task(to_call, interval, rounds, now() + interval));
+        timestamp interval = convert_sec(seconds);
+        task* new_task = new task(to_call, interval, rounds, now() + interval);
+        push_task(new_task);
+        return new_task;
     }
-    void push_task_interval(unsigned long          interval,
-                            std_k::callable<void>* to_call,
-                            int                    rounds) override {
-        push_task(task(to_call, interval, rounds, now() + interval));
+    task* push_task_rate(unsigned long rate, std_k::callable<void>* to_call,
+                         int rounds) override {
+        timestamp interval = convert_rate(rate);
+        task* new_task = new task(to_call, interval, rounds, now() + interval);
+        push_task(new_task);
+        return new_task;
+    }
+    task* push_task_interval(unsigned long          interval,
+                             std_k::callable<void>* to_call,
+                             int                    rounds) override {
+        task* new_task = new task(to_call, interval, rounds, now() + interval);
+        push_task(new_task);
+        return new_task;
     }
 
     void run() override {
         if constexpr (!oneshot) return;
+        lock.lock();
 
         // Active task needs to be replaced
-        if (active.rounds > 0) { active.rounds--; }
-        if (active.rounds != 0) { active.time += active.interval; }
-        std_k::callable<void>* to_be_called = active.target;
+        std_k::callable<void>* to_be_called
+            = (active->rounds ? active->target : nullptr);
+        if (active->rounds > 0) { active->rounds--; }
+        if (active->rounds != 0) { active->time += active->interval; }
+        task* old_task = active;
 
         // Prepare next task
-        if (tasks.empty() && (active.rounds != 0)) {
+        if (tasks.empty() && (active->rounds != 0)) {
             // Only task anyways
-            set_interrupt_absolute(active.time);
+            set_interrupt_absolute(active->time);
         } else if (tasks.empty()) {
             // No task to replace
-            active.time = ~0;
-            set_interrupt_absolute(0);
-        } else if (active.rounds != 0) {
+            active->time = ~0;
+            set_interrupt_absolute(active->time);
+
+            delete old_task;
+        } else if (active->rounds != 0) {
             // Need to return to heap before taking next
-            task saved = tasks.top();
+            task* new_task = tasks.top();
             tasks.replace_top(active);
 
-            active = saved;
-            set_interrupt_absolute(active.time);
+            if (new_task->rounds == 0) {
+                // Task has been cancelled, grab another
+                while (new_task->rounds == 0) {
+                    delete new_task;
+                    new_task = tasks.top();
+                    tasks.pop_top();
+                }
+            }
+
+            active = new_task;
+            set_interrupt_absolute(active->time);
         } else {
             // Just take top from heap
-            active = tasks.top();
+            task* new_task = tasks.top();
             tasks.pop_top();
-            set_interrupt_absolute(active.time);
-        }
 
-        // Call the task
-        to_be_called->call();
+            if (new_task->rounds == 0) {
+                // Task has been cancelled, grab another
+                while (new_task->rounds == 0) {
+                    delete new_task;
+                    new_task = tasks.top();
+                    tasks.pop_top();
+                }
+            }
+
+            active = new_task;
+            set_interrupt_absolute(active->time);
+
+            delete old_task;
+        }
+        lock.unlock();
+
+        // Call the task, as long as it hasn't been cancelled
+        if (to_be_called != nullptr) to_be_called->call();
     }
     static void run(hpet_comparator<oneshot, periodic>* target) {
         target->run();
     }
-    bool empty() const override { return (active.time == ~0UL); }
+    bool empty() const override { return (active->time == ~0UL); }
     // endregion
 };
 

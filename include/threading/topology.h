@@ -4,6 +4,7 @@
 #include "apic.h"
 #include "device/device.h"
 #include "libk/asm.h"
+#include "memory/x86_tables.h"
 #include "system/acpi.h"
 
 namespace threading {
@@ -22,7 +23,11 @@ struct logical_core : public device {
     apic<true, false>            local_apic;
     chunking::chunk_pile*        memory_piles;
     threading::thread_scheduler* scheduler;
-    void*                        sys_stack;
+    void*                        system_stack;
+    void*                        system_stack_top;
+
+    x86_tables::gdt_table             gdt;
+    x86_tables::interrupt_stack_table ist;
 
     void start_thread(void (*target_code)());
 

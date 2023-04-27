@@ -88,9 +88,9 @@ template<class T, class comparison = less<T>> class avl_tree {
 
     // Search functions
     template<class end_condition = std_k::equal_to<T>>
-    avl_node<T>* find(T target);
+    avl_node<T>* find(T target) const;
     template<class end_condition = std_k::equal_to<T>>
-    avl_node<T>* find(T target_value, int index);
+    avl_node<T>* find(T target_value, int index) const;
 
     // Simple modifications
     void insert(avl_node<T>* new_node);
@@ -151,7 +151,7 @@ unsigned int avl_tree<T, comparison>::get_height() {
  */
 template<class T, class comparison>
 template<class end_condition>
-avl_node<T>* avl_tree<T, comparison>::find(T target_value) {
+avl_node<T>* avl_tree<T, comparison>::find(T target_value) const {
 
     avl_node<T>* current_node = root_node;
 
@@ -181,7 +181,7 @@ avl_node<T>* avl_tree<T, comparison>::find(T target_value) {
  */
 template<class T, class comparison>
 template<class end_condition>
-avl_node<T>* avl_tree<T, comparison>::find(T target_value, int index) {
+avl_node<T>* avl_tree<T, comparison>::find(T target_value, int index) const {
 
     avl_node<T>* current_node = root_node;
 
@@ -889,6 +889,9 @@ void avl_tree<T, comparison>::seperate(avl_node<T>* target_node) {
 
         // Rebalance the tree
         balance_deletion(parent_node, balance_change);
+
+        // Can delete target
+        delete target_node;
     }
 }
 
@@ -955,7 +958,8 @@ void avl_tree<T, comparison>::seperate_root() {
             root_node = 0;
         }
 
-        // No rebalancing needs to be done
+        // No rebalancing needs to be done, can delete node
+        delete target_node;
     }
 }
 

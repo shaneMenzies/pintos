@@ -13,8 +13,6 @@
 #include "system/pintos_std.h"
 #include "terminal/terminal.h"
 
-#include <stdint.h>
-
 namespace acpi {
 
 /**
@@ -47,8 +45,9 @@ old_rsdp* find_rsdp(multiboot_boot_info* mb_info) {
         active_terminal->update();
 
         // Try to search for it in the EBDA
-        uint64_t* current = (uint64_t*)((*((uint16_t*)0x40e) | 0ULL) << 4);
-        uintptr_t end     = (uintptr_t)current + 0x400;
+        uint64_t* current
+            = (uint64_t*)((*((uint16_t* volatile)0x40e) | 0ULL) << 4);
+        uintptr_t end = (uintptr_t)current + 0x400;
         if ((uintptr_t)current < 0x100000) {
             while ((uintptr_t)current < end) {
                 if (*current == RSDP_SIGNATURE) {
@@ -152,7 +151,7 @@ void map_tables(old_rsdp* rsdp) {
             // Map entirety
             paging::kernel_address_space.identity_map_region(
                 (uintptr_t)rsdt->tables[i],
-                ((table_header*)(rsdt->tables[i] || 0ULL))->length);
+                ((table_header*)(rsdt->tables[i] | 0ULL))->length);
         }
     }
 }

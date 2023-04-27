@@ -46,15 +46,14 @@ void seed_rand() {
     } else if (rdrand_capable()) {
         shift_register = rd_rand();
     } else {
-        shift_register = shift_register ^ *((uint64_t*)1) ^ 0xCBA2D3C1DE;
+        shift_register = shift_register ^ 0xCBA2D3C1DE;
     }
 }
 
 uint64_t get_rand() {
-    bool input = (shift_register & (1ULL << 63))
-        ^ (shift_register & (1ULL << 62))
-        ^ (shift_register & (1ULL << 60))
-        ^ (shift_register & (1ULL << 59));
+    bool input
+        = (shift_register & (1ULL << 63)) ^ (shift_register & (1ULL << 62))
+          ^ (shift_register & (1ULL << 60)) ^ (shift_register & (1ULL << 59));
 
     shift_register <<= 1;
     shift_register |= (input ? 1 : 0);

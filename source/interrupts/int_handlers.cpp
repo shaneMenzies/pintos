@@ -18,6 +18,9 @@
 #include "threading/threading.h"
 #include "time/timer.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 namespace interrupts {
 
 /* #region Exceptions */
@@ -130,21 +133,8 @@ __attribute__((interrupt)) void unaligned_mem(interrupt_frame* frame) {
 
 __attribute__((interrupt)) void gpf_handler(interrupt_frame*  frame,
                                             unsigned long int error_code) {
-
-    (void)frame;
-    io_write_s("gpf_handler Interrupt Called", COM_1);
-
     raise_error(003, const_cast<char*>("gpf_handler"));
-    active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
-    active_terminal->update();
 
-    // disable_interrupts();
-    // while(1) {
-    //     int error = error_code_addr->code;
-    //     if (error == 0)
-    //         break;
-    // }
-    // enable_interrupts();
     send_EOI();
 }
 
@@ -182,16 +172,7 @@ __attribute__((interrupt)) void segment_fault(interrupt_frame*  frame,
 __attribute__((interrupt)) void page_fault(interrupt_frame*  frame,
                                            unsigned long int error_code) {
 
-    (void)frame;
-    io_write_s("page_fault Interrupt Called", COM_1);
-
     raise_error(003, const_cast<char*>("page_fault"));
-    active_terminal->tprintf(const_cast<char*>("Error Code: %x\n"), error_code);
-    active_terminal->update();
-
-    disable_interrupts();
-    while (1) {}
-    enable_interrupts();
 
     send_EOI();
 }
@@ -442,3 +423,5 @@ __attribute__((naked)) void yield_int() {
     asm volatile("iretq \n\t");
 }
 } // namespace interrupts
+
+#pragma GCC diagnostic pop

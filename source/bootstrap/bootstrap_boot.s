@@ -6,9 +6,14 @@ bss_start:
 .align 0x1000
 .global stack_bottom
 stack_bottom:
-.skip 32768 # 32 KiB Stack
+.skip 16384 # 16 KiB Main Stack
 .global stack_top
 stack_top:
+.global int_stack_bottom
+int_stack_bottom:
+.skip 16384 # 16 KiB Interrupt Stack
+.global int_stack_top
+int_stack_top:
 
 .align 0x1000
 .global PML4T
@@ -119,6 +124,28 @@ long_jump:
     mov gs, ax
     mov ss, ax
 
+    # Load TSS
+    lea rax, [rip + TSS64]
+    lea rdi, [rip + GDT_TSS]
+    add rdi, 0x2
+
+    mov [rdi], ax
+    add rdi, 0x2
+    shr rax, 16
+
+    mov [rdi], al
+    add rdi, 0x2
+    shr rax, 8
+
+    mov [rdi], al
+    add rdi, 0x1
+    shr rax, 8
+
+    mov [rdi], eax
+
+    mov ax, 0x28
+    ltr ax
+
     # Send Initialization signal
     call send_init_serial
 
@@ -149,6 +176,32 @@ long_jump:
 
 .section .data
 
+.global TSS64
+TSS64:
+    .4byte 0
+
+    # RSP0
+    .8byte stack_top
+
+    .8byte 0
+    .8byte 0
+    .8byte 0
+
+    # IST1
+    .8byte int_stack_top
+
+    .8byte 0
+    .8byte 0
+    .8byte 0
+    .8byte 0
+    .8byte 0
+    .8byte 0
+    .8byte 0
+
+    .word 0
+    .word 104
+TSS64_end:
+
 .global GDT64
 .global GDT_Pointer
 GDT64:
@@ -168,7 +221,7 @@ GDT64:
     .word 0
     .byte 0
     .byte 0b10011010
-    .byte 0b10101111
+    .byte 0b00100000
     .byte 0
 
     # Data Segment
@@ -179,6 +232,36 @@ GDT64:
     .byte 0b10010010
     .byte 0b00000000
     .byte 0
+
+    # User Code Segment
+    GDT_User_Code:
+    .word 0
+    .word 0
+    .byte 0
+    .byte 0b11111010
+    .byte 0b00100000
+    .byte 0
+
+    # User Data Segment
+    GDT_User_Data:
+    .word 0
+    .word 0
+    .byte 0
+    .byte 0b11110010
+    .byte 0b00000000
+    .byte 0
+
+    # TSS Segment
+    # Address will have to be filled at runtime
+    GDT_TSS:
+    .word TSS64_end - TSS64
+    .word 0
+    .byte 0
+    .byte 0x89
+    .byte 0
+    .byte 0
+    .4byte 0
+    .4byte 0
 
 # GDT Pointer info
 GDT_Pointer:
@@ -195,7 +278,7 @@ multiboot_boot_info:
 .8byte 0 # boot_start
 .8byte 0 # boot_size
 .8byte stack_bottom
-.8byte stack_top
+.8byte int_stack_top
 .skip 386
 
 # New thread entry point

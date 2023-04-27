@@ -39,9 +39,12 @@ int run_command(const char* input, int argc, char* argv[]);
 namespace commands {
 int echo(int argc, char* argv[]);
 int test(int argc, char* argv[]);
-int cpuinfo(int argc, char* argv[]);
 int test_alloc(int argc, char* argv[]);
 int branch(int argc, char* argv[]);
+
+int cpu_stat(int argc, char* argv[]);
+int mem_stat(int argc, char* argv[]);
+int proc_stat(int argc, char* argv[]);
 } // namespace commands
 } // namespace kernel
 

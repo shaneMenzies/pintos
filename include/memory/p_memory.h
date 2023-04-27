@@ -10,17 +10,28 @@ struct multiboot_boot_info;
 struct multiboot_mmap_entry;
 
 #define NUM_PROTECTED_REGIONS 7
-extern void*           protected_regions[NUM_PROTECTED_REGIONS][2];
+extern void* protected_regions[NUM_PROTECTED_REGIONS][2];
+
+namespace std {
+enum class align_val_t : size_t {};
+}
+using std::align_val_t;
 
 void* operator new(size_t size);
+void* operator new(size_t size, align_val_t alignment);
 void* operator new(size_t size, void* placement);
 void* operator new[](size_t size);
+void* operator new[](size_t size, align_val_t alignment);
 void* operator new[](size_t size, void* placement);
 
 void operator delete(void* p);
-void operator delete(void* p, long unsigned int size);
+void operator delete(void* p, align_val_t alignment);
+void operator delete(void* p, size_t size);
+void operator delete(void* p, size_t size, align_val_t alignment);
 void operator delete[](void* p);
-void operator delete[](void* p, long unsigned int size);
+void operator delete[](void* p, align_val_t alignment);
+void operator delete[](void* p, size_t size);
+void operator delete[](void* p, size_t size, align_val_t alignment);
 
 void fill_protected_regions(multiboot_boot_info* mb_info);
 int  check_protected_regions(void* added_start, size_t added_size,

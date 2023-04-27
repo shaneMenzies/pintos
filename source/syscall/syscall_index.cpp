@@ -12,7 +12,15 @@
 // region syscalls
 
 // Empty syscall for unimplemented syscalls
-uint64_t unimplemented(SYSCALL_ARGS) { return 0; }
+uint64_t unimplemented(SYSCALL_ARGS) {
+    (void)arg_0;
+    (void)arg_1;
+    (void)arg_2;
+    (void)arg_3;
+    (void)arg_4;
+    (void)arg_5;
+    return 0;
+}
 
 // endregion
 

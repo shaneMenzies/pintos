@@ -53,6 +53,8 @@ void _start(multiboot_boot_info* mb_info) {
     early_init(mb_info);
     _init();
     late_init(mb_info);
+    active_terminal->write_s(
+        const_cast<char*>("Returned from initialization?\n"));
     _fini();
 }
 
@@ -170,19 +172,15 @@ void late_init(multiboot_boot_info* mb_info) {
     // Find this core's scheduler
     threading::thread_scheduler* scheduler = thread->scheduler;
 
-    if (scheduler == 0) { asm volatile("cli\n\t hlt"); }
+    if (scheduler == nullptr) { asm volatile("cli\n\t hlt"); }
 
     // Setup the scheduler
-    scheduler
-        = new (scheduler) threading::thread_scheduler(current_thread(), 0);
-
-    // Enter this core's sleep
-    scheduler->sleep();
+    scheduler = new (scheduler) threading::thread_scheduler(current_thread());
 
     // Initialization process is finished
     initialized = true;
 
     // Enter the boot core's scheduler
-    scheduler->sleep();
+    scheduler->enter_sleep();
 }
 }

@@ -86,7 +86,7 @@ allocation_entry* aligned_chunk_alloc(size_t size, size_t alignment) {
     allocation_entry* entry
         = (allocation_entry*)((uintptr_t)chunk_location
                               + (sizeof(chunking::chunk) * required_chunks));
-    void* mapped_location = (void*)((uintptr_t)entry + added_size);
+    void* mapped_location = (void*)((uintptr_t)chunk_location + added_size);
     void* next_to_map     = chunk_location;
 
     chunking::chunk_pile* current_piles = current_thread()->memory_piles;
@@ -204,7 +204,7 @@ allocation_entry* bootstrap_aligned_chunk_alloc(size_t size, size_t alignment) {
     allocation_entry* entry
         = (allocation_entry*)((uintptr_t)chunk_location
                               + (sizeof(chunking::chunk) * required_chunks));
-    void* mapped_location = (void*)((uintptr_t)entry + added_size);
+    void* mapped_location = (void*)((uintptr_t)chunk_location + added_size);
     void* next_to_map     = chunk_location;
 
     // Get all the required chunks

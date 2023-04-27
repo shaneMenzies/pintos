@@ -10,6 +10,7 @@
 #include "chunking.h"
 
 #include "paging.h"
+#include "system/init.h"
 #include "system/multiboot.h"
 #include "system/pintos_std.h"
 
@@ -21,21 +22,23 @@ chunk_reservoir memory_reservoirs[NUM_MEMORY_PILES];
 
 chunk chunk_reservoir::get_chunk(bool lock_override) {
 
-    if (!lock_override) get_lock(&access_lock);
+    if (!lock_override) access_lock.lock();
 
     chunk return_value;
     if ((uintptr_t)last >= (uintptr_t)start) {
         return_value = *last;
         last         = (chunk*)((uintptr_t)last - sizeof(chunk));
-        if (!lock_override) access_lock = false;
+        if (!lock_override) access_lock.unlock();
 
     } else if (pile_index < (NUM_MEMORY_PILES - 1)) {
-        if (!lock_override) access_lock = false;
+        if (!lock_override) access_lock.unlock();
 
         // Get chunk from next largest reservoir to fill this one
         chunk break_down_chunk = memory_reservoirs[pile_index + 1].get_chunk();
 
         if (break_down_chunk.size == 0) {
+            if (!initialized) { return chunk(0, 0); }
+
             // None available in reservoir, search other threads' piles
             unsigned int thread = 0;
             while (1) {
@@ -61,7 +64,7 @@ chunk chunk_reservoir::get_chunk(bool lock_override) {
         add_chunks(new_chunks, 0xf, lock_override);
         return_value = new_chunks[0xf];
     } else {
-        if (!lock_override) access_lock = false;
+        if (!lock_override) access_lock.unlock();
 
         return chunk(0, 0);
     }

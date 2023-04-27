@@ -30,9 +30,15 @@ void logical_core::start_thread(void (*target_code)()) {
 
     // Prepare startup environment for the new core
     *threading::thread_startup_info.thread_target = (void*)(thread_spinlock);
+    system_stack                                  = malloc(16384);
     *threading::thread_startup_info.thread_stack_top
-        = (void*)((uintptr_t)malloc(32768) + 32768);
-    sys_stack = threading::thread_startup_info.thread_stack_top;
+        = (void*)((uintptr_t)system_stack + 16384);
+    system_stack_top = threading::thread_startup_info.thread_stack_top;
+
+    new (&gdt) x86_tables::gdt_table();
+    gdt.set_ist((uint64_t)&ist, sizeof(ist) + 1);
+    ist.interrupt_stack[1]       = (uint64_t)malloc(16384) + 16384;
+    ist.privilege_level_stack[0] = (uint64_t)system_stack_top;
 
     // Send initialize assertion command
     current_apic::send_apic_command(local_apic.id, 0, 5, false, false, 0);

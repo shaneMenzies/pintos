@@ -3,6 +3,7 @@
 
 #include "display/display.h"
 #include "io/keyboard.h"
+#include "libk/mutex.h"
 #include "libk/streambuf.h"
 
 #include <stdarg.h>
@@ -73,7 +74,7 @@ class visual_terminal : public terminal {
         write_c(character);
         handler.run_action(character);
     }
-    void write_c(const char character) override;
+    void         write_c(const char character) override;
     void         write_s(const char* string) override;
     virtual void write_n(const char* string, size_t length) override;
     void         draw_cursor(int state = -1);

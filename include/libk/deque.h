@@ -11,18 +11,12 @@ template<class T> class deque {
   public:
     deque()
         : current_array(new T[DEQUE_INITIAL_SIZE])
-        , front_index(0)
-        , back_index(0)
         , current_capacity(DEQUE_INITIAL_SIZE) {};
     deque(size_t initial_capacity)
         : current_array(new T[DEQUE_INITIAL_SIZE])
-        , front_index(0)
-        , back_index(0)
         , current_capacity(initial_capacity) {};
     deque(T* initial_array, size_t initial_capacity)
         : current_array(initial_array)
-        , front_index(0)
-        , back_index(0)
         , current_capacity(initial_capacity) {};
     ~deque() {
         clear();
@@ -56,8 +50,8 @@ template<class T> class deque {
             return (back_index - front_index);
     }
 
-    bool   empty() const { return (back_index == front_index); }
-    size_t size() const { return (end() + 1); }
+    bool   empty() const { return (current_size == 0); }
+    size_t size() const { return current_size; }
     size_t max_size() const { return current_capacity; }
 
     void push_back(T value);
@@ -80,6 +74,7 @@ template<class T> class deque {
     T*     current_array = nullptr;
     size_t front_index   = 0;
     size_t back_index    = 0;
+    size_t current_size  = 0;
     size_t current_capacity;
 };
 
@@ -89,12 +84,13 @@ template<class T> void deque<T>::push_back(T value) {
             back_index = 0;
         } else {
             recap(current_capacity * 2);
-            back_index++;
+            if (current_size != 0) back_index++;
         }
     } else {
-        back_index++;
+        if (current_size != 0) back_index++;
     }
 
+    current_size++;
     current_array[back_index] = value;
 }
 
@@ -104,8 +100,9 @@ template<class T> void deque<T>::pop_back() {
         if (back_index == 0) {
             back_index = current_capacity - 1;
         } else {
-            back_index--;
+            if (current_size > 1) back_index--;
         }
+        current_size--;
     }
 }
 
@@ -117,11 +114,12 @@ template<class T> void deque<T>::push_front(T value) {
         front_index = current_capacity - 1;
     } else if ((front_index - 1) == back_index) {
         recap(current_capacity * 2);
-        front_index--;
+        if (current_size != 0) front_index--;
     } else {
-        front_index--;
+        if (current_size != 0) front_index--;
     }
 
+    current_size++;
     current_array[front_index] = value;
 }
 
@@ -131,8 +129,9 @@ template<class T> void deque<T>::pop_front() {
         if (front_index == (current_capacity - 1)) {
             front_index = 0;
         } else {
-            front_index++;
+            if (current_size > 1) front_index++;
         }
+        current_size--;
     }
 }
 

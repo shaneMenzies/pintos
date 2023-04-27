@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct allocation_manager;
+class allocation_manager;
 
 extern allocation_manager kernel_allocation_manager;
 
@@ -65,43 +65,43 @@ class allocation_manager {
   public:
     std_k::avl_tree<allocation_info> info_map;
 
-    bool entry_lock = false;
+    std_k::mutex entry_lock;
 
     allocation_manager() {};
 
-    inline void add_entry(allocation_entry* entry) {
+    void add_entry(allocation_entry* entry) {
 
         // Get modification lock
-        get_lock(&entry_lock);
+        entry_lock.lock();
 
         // Add into the map
         info_map.insert(entry);
 
         // Release lock
-        entry_lock = false;
+        entry_lock.unlock();
     }
 
     allocation_info take_entry(uintptr_t address) {
 
         // Get lock
-        get_lock(&entry_lock);
+        entry_lock.lock();
 
         // Find the entry
         allocation_entry* target
             = (allocation_entry*)info_map.find(allocation_info(address, 0, 0));
 
         if (target == nullptr) {
-            entry_lock = false;
+            entry_lock.unlock();
             return allocation_info();
+        } else {
+            allocation_info value = target->value;
+
+            // Remove it from the map
+            info_map.seperate(target);
+
+            entry_lock.unlock();
+            return value;
         }
-
-        // Remove it from the map
-        info_map.seperate(target);
-
-        // Release lock
-        entry_lock = false;
-
-        return target->value;
     }
 };
 

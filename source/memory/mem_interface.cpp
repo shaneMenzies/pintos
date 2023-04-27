@@ -27,6 +27,13 @@ allocation_manager kernel_allocation_manager;
 void* operator new(size_t size) { return malloc(size); }
 void* operator new[](size_t size) { return malloc(size); }
 
+void* operator new(size_t size, align_val_t alignment) {
+    return aligned_alloc(size, (size_t)alignment);
+}
+void* operator new[](size_t size, align_val_t alignment) {
+    return aligned_alloc(size, (size_t)alignment);
+}
+
 void* operator new(size_t size, void* placement) {
     (void)size;
     return placement;
@@ -37,13 +44,32 @@ void* operator new[](size_t size, void* placement) {
 }
 
 void operator delete(void* p) { free(p); }
-void operator delete(void* p, long unsigned int size) {
+void operator delete(void* p, size_t size) {
+    (void)size;
+    free(p);
+}
+void operator delete(void* p, align_val_t alignment) {
+    (void)alignment;
+    free(p);
+}
+void operator delete(void* p, size_t size, align_val_t alignment) {
+    (void)alignment;
     (void)size;
     free(p);
 }
 
 void operator delete[](void* p) { free(p); }
-void operator delete[](void* p, long unsigned int size) {
+void operator delete[](void* p, size_t size) {
+    (void)size;
+    free(p);
+}
+
+void operator delete[](void* p, align_val_t alignment) {
+    (void)alignment;
+    free(p);
+}
+void operator delete[](void* p, size_t size, align_val_t alignment) {
+    (void)alignment;
     (void)size;
     free(p);
 }
@@ -218,6 +244,8 @@ uintptr_t palloc(bool lock_override) {
  * @param target_address    Address of the start of the area to be freed
  */
 void free(void* target_address) {
+
+    if (target_address == nullptr) return;
 
     // Check with sub-page bounds first
     if (!paging::kernel_address_space.sub_page_memory.try_sub_free(

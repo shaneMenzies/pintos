@@ -56,24 +56,7 @@ void set_gate(idt_gate& target, void* offset, gdt_selector selector,
     target.selector = selector;
 
     target.type_attr = ((type & 0xf) | (type_top & 0xf0));
-}
 
-void set_segment(gdt_segment& target, void* base, uint32_t limit,
-                 gdt_access_types access, gdt_flags flags) {
-
-    target.base_1 = ((uintptr_t)base & 0xffff);
-    base          = (void*)((uintptr_t)base >> 16);
-    target.base_2 = ((uintptr_t)base & 0xff);
-    base          = (void*)((uintptr_t)base >> 8);
-    target.base_3 = ((uintptr_t)base & 0xff);
-    base          = (void*)((uintptr_t)base >> 8);
-    target.base_4 = ((uintptr_t)base & 0xffffffff);
-
-    target.limit_1 = (limit & 0xffff);
-    limit >>= 16;
-    target.flags_limit_2 = (limit & 0x0f);
-
-    target.flags_limit_2 |= flags;
-    target.access = access;
+    target.ist = 1;
 }
 } // namespace x86_tables

@@ -32,20 +32,12 @@ void set_error_terminal(visual_terminal* new_terminal) {
  */
 void raise_error(uint32_t error_code = 0, const char* caller = 0) {
 
+    // After error occurs, fallback to serial terminal
     io_write_s("Error Raised!", COM_1);
 
-    // Print the error code to the terminal
-    const char error_code_format[] = "\nError No. %u in %s:\n\t";
-    error_terminal->tprintf(const_cast<char*>(error_code_format), error_code,
-                            caller);
-
     // Print the associated info on this code
-    error_terminal->write_s(const_cast<char*>(get_code_info(error_code)));
     io_write_s(const_cast<char*>(get_code_info(error_code)), COM_1);
 
-    error_terminal->update();
-
-    active_terminal = error_terminal;
 }
 
 /**

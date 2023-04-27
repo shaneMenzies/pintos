@@ -10,35 +10,41 @@
 #include "threading.h"
 
 #include "interrupts/interrupts.h"
-#include "libk/misc.h"
-#include "libk/sorting.h"
-#include "memory/addressing.h"
-#include "memory/allocation_manager.h"
+#include "libk/asm.h"
 #include "memory/chunking.h"
 #include "memory/p_memory.h"
-#include "memory/paging.h"
 #include "process_def.h"
 #include "system/acpi.h"
-#include "system/pintos_std.h"
+#include "terminal/terminal.h"
 #include "time/timer.h"
 #include "topology.h"
+
+void __attribute__((noreturn)) cpu_sleep_state() {
+    enable_interrupts();
+
+    while (1) { asm volatile("hlt \n\t"); }
+}
 
 namespace threading {
 
 struct new_thread_startup_info thread_startup_info;
 
-struct system_scheduler main_scheduler;
+process_list_t process_list;
+
+system_scheduler_t system_scheduler;
 
 void thread_init() {
 
     // Enable floating point instructions
     fpu_init();
 
-    // Load the Interrupt Descriptor Table
-    set_idt(interrupts::idt_table, interrupts::IDT_SIZE);
-
     // Find current thread
     logical_core* thread = current_thread();
+    thread->gdt.load_gdt();
+    thread->ist.load_ist();
+
+    // Load the Interrupt Descriptor Table
+    set_idt(interrupts::idt_table, interrupts::IDT_SIZE);
 
     // Setup local apic
     new (&thread->local_apic) apic<true, false>();
@@ -49,10 +55,10 @@ void thread_init() {
     if (scheduler == 0) { asm volatile("cli\n\t hlt"); }
 
     // Setup the scheduler
-    scheduler = new (scheduler) thread_scheduler(current_thread(), 0);
+    scheduler = new (scheduler) thread_scheduler(current_thread());
 
     // Enter this core's sleep
-    scheduler->sleep();
+    scheduler->enter_sleep();
 }
 
 void enter_sleep() {
@@ -60,27 +66,22 @@ void enter_sleep() {
     thread_scheduler* scheduler = current_thread()->scheduler;
 
     // Go to this core's sleep
-    scheduler->sleep();
+    scheduler->enter_sleep();
 }
 
 void start_threads() {
-    // Set up the system's scheduler
-    main_scheduler.num_threads = topology.num_logical;
-    main_scheduler.shared_threads
-        = (topology.num_logical > topology.num_physical);
-    main_scheduler.threads = new thread_scheduler[main_scheduler.num_threads];
-
     // Loop through each logical thread of the system
     for (unsigned int i = 0; i < topology.num_logical; i++) {
 
         // Create this threads scheduler
-        topology.threads[i].scheduler = &main_scheduler.threads[i];
+        topology.threads[i].scheduler = new thread_scheduler;
 
         // Initialize this thread's memory piles
         topology.threads[i].memory_piles
             = new chunking::chunk_pile[chunking::NUM_MEMORY_PILES];
         for (unsigned int pile = 0; pile < chunking::NUM_MEMORY_PILES; pile++) {
-            topology.threads[i].memory_piles[pile] = chunking::chunk_pile(pile);
+            new (&topology.threads[i].memory_piles[pile])
+                chunking::chunk_pile(pile);
         }
 
         // Start the thread and send it to the thread initialization,
@@ -91,62 +92,61 @@ void start_threads() {
     }
 }
 
-void end_of_task() {
-    // Task should have returned with the address of the scheduler still left on
-    // the stack
-    thread_scheduler* scheduler    = ((thread_scheduler**)get_rbp())[1];
-    process*          current_task = scheduler->current_task();
+void thread_scheduler::run(thread_scheduler*   target,
+                           general_regs_state* task_regs,
+                           interrupt_frame*    frame) {
+    process* new_task = system_scheduler.get();
 
-    // Check number of times the task should be executed
-    if (current_task->rounds) {
-        // Not an infinite task, so decrease the completed rounds
-        current_task->rounds--;
-
-        // Is the task now finished?
-        if (current_task->rounds == 0) {
-            // Run completion task if it exists
-
-            // Delete the task and start next task
-            scheduler->remove_task(scheduler->current_task_index);
-
-            if (scheduler->tasks.empty()) {
-                // No more tasks left, so enter sleep
-                scheduler->sleep();
-            } else if (scheduler->current_task_index
-                       >= scheduler->tasks.size()) {
-                scheduler->current_task_index = 0;
-            }
+    // If scheduler has no tasks, it returns null without locking
+    if (new_task != nullptr) {
+        // Swap back old task
+        if (target->current_task != nullptr) {
+            target->current_task->saved_state.save_state(task_regs, frame);
+            system_scheduler.add_process(target->current_task);
         }
+
+        // Start work on new task
+        target->current_task = new_task;
+        target->current_task->saved_state.load_state(task_regs, frame);
+
+        // active_terminal->tprintf("Scheduler for cpu%x swapping to %p \n",
+        //                          target->local_timer->id,
+        //                          target->current_task->main);
+    } else if (target->current_task == nullptr) {
+        // Send cpu to sleep state if there's no task at all
+        frame->return_instruction = (uint64_t)cpu_sleep_state;
     }
 
-    // Repush the scheduler address and jump back into the task
-    push_64((uint64_t)end_of_task);
-    scheduler->current_task()->main->call();
+    // Reset scheduling timer
+    int schedule_time = 1;
+    if (target->current_task != nullptr)
+        schedule_time = target->current_task->priority;
+
+    unsigned long schedule_rate = SCHEDULING_DEFAULT_RATE / schedule_time;
+    if (schedule_rate < 1) schedule_rate = 1;
+
+    target->scheduling_timer_task = target->local_timer->push_task_rate(
+        schedule_rate, &target->scheduling_function, 1);
+
+    // Will return to loaded state
+    return;
 }
 
-bool process::lazy_timing_check() {
-    // Get required timestamp from top of stack
-    uint64_t target_time = saved_state.peek(0);
+void thread_scheduler::yield_current(general_regs_state* task_regs,
+                                     interrupt_frame*    frame) {
+    // Need to cancel run timer early
+    scheduling_timer_task->rounds = 0;
 
-    // Get current timer timestamp
-    uint64_t current_time = scheduler->local_timer->now();
+    // Check if this task is actually finished
+    if (current_task->rounds == 0) {
+        if (!current_task->config.wait_on_end) { delete current_task; }
+        current_task = nullptr;
 
-    if (current_time >= target_time) {
-        // Done waiting, can continue with task
-        waiting = none;
-        return true;
-    } else {
-        return false;
+        // active_terminal->tprintf("Scheduler for cpu%x finished task \n",
+        //                          local_timer->id);
     }
 
-    /**
-     * Note:
-     *  Technically this could cause a problem when a buffer overflow occurs,
-     *  but even with a timer rate of 1 GHz, that would take over 500 years
-     *
-     *  If you are reading this at a point in time where a timer with a rate
-     *  over 10-100 GHz, add another check of the actual elapsed time to
-     *  this.
-     */
+    run(this, task_regs, frame);
 }
+
 } // namespace threading

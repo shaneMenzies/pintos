@@ -19,6 +19,23 @@ template<typename T, class compare = std_k::less<T>> struct poly_node {
               size_t initial_size)
         : value(value)
         , children(initial_children, initial_size, initial_size) {}
+    poly_node(const poly_node& source)
+        : value(source.value)
+        , parent(source.parent)
+        , children(source.children) {}
+
+    poly_node& operator=(const poly_node& source) {
+        value    = source.value;
+        parent   = source.parent;
+        children = source.children;
+        return *this;
+    }
+    poly_node& operator=(poly_node&& source) {
+        value    = source.value;
+        parent   = source.parent;
+        children = source.children;
+        return *this;
+    }
 
     operator T() { return value; }
 

@@ -125,7 +125,7 @@ io_apic::io_apic(acpi::madt_io_apic* source, acpi::madt_table* madt)
         }
     }
 
-    delete overrides[num_irqs];
+    delete[] overrides;
 
     // Register device in device tree
     devices::register_device(this, default_path, &devices::device_tree);

@@ -132,6 +132,8 @@ class apic
     }
 
   public:
+    int num_tasks() const { return tasks.get_vec().size(); }
+
     // region Template conversions
     template<bool to_o, bool to_p> operator apic<to_o, to_p>() {
         apic<to_o, to_p> to_apic;

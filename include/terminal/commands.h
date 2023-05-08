@@ -45,6 +45,8 @@ int branch(int argc, char* argv[]);
 int cpu_stat(int argc, char* argv[]);
 int mem_stat(int argc, char* argv[]);
 int proc_stat(int argc, char* argv[]);
+
+int scheduling(int argc, char* argv[]);
 } // namespace commands
 } // namespace kernel
 

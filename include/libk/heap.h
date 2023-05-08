@@ -16,7 +16,8 @@ template<class T, class comparison = less<T>> class heap {
     void push(T value);
     void replace_top(T new_value);
 
-    vector<T>& get_vec() { return data; }
+    const vector<T>& get_vec() const { return data; }
+    vector<T>&       get_vec() { return data; }
 
     bool empty() { return data.empty(); }
 

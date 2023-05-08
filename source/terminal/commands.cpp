@@ -26,14 +26,14 @@ unsigned int    num_commands    = 0;
 unsigned int    max_commands    = 0;
 command_entry** command_entries = 0;
 
-constexpr unsigned int num_kernel_commands = 7;
+constexpr unsigned int num_kernel_commands = 8;
 const char*            kernel_command_identifiers[num_kernel_commands]
-    = {"echo",   "test",     "cpu_stat", "test_alloc",
-       "branch", "mem_stat", "proc_stat"};
+    = {"echo",   "test",     "cpu_stat",  "test_alloc",
+       "branch", "mem_stat", "proc_stat", "scheduling"};
 int (*kernel_command_pointers[num_kernel_commands])(int argc, char** argv)
-    = {commands::echo,       commands::test,   commands::cpu_stat,
-       commands::test_alloc, commands::branch, commands::mem_stat,
-       commands::proc_stat};
+    = {commands::echo,       commands::test,      commands::cpu_stat,
+       commands::test_alloc, commands::branch,    commands::mem_stat,
+       commands::proc_stat,  commands::scheduling};
 
 void cmd_init() {
 
@@ -318,5 +318,82 @@ int proc_stat(int argc, char* argv[]) {
     return 0;
 }
 
+int scheduling(int argc, char* argv[]) {
+    // Needs at least 1 argument
+    if (argc < 2) {
+        active_terminal->tprintf("No keyword provided.\n");
+        return 1;
+    }
+
+    // Split on provided keyword
+    if (std_k::strncmp(argv[1], "pause", 5) == 0) {
+        // Pauses the system scheduler, keeping it from handing processes
+        //  out to individual threads
+        threading::system_scheduler.paused = true;
+        return 0;
+
+    } else if (std_k::strncmp(argv[1], "start", 5) == 0) {
+        // Unpauses the system scheduler
+        threading::system_scheduler.paused = false;
+        return 0;
+
+    } else if (std_k::strncmp(argv[1], "status", 6) == 0) {
+        // More detailed information on the scheduler states
+
+        // Print thread states
+        active_terminal->tprintf("Thread Schedulers:\n");
+        for (unsigned int i = 0; i < topology.num_logical; i++) {
+            logical_core* current_thread = &topology.threads[i];
+
+            active_terminal->tprintf("\tThread #%u: \n", i);
+
+            if (current_thread->scheduler->current_task == nullptr) {
+                active_terminal->tprintf("\t\tIdle\n");
+            } else {
+                active_terminal->tprintf(
+                    "\t\tActive (pid = %u)\n",
+                    current_thread->scheduler->current_task->pid);
+            }
+
+            active_terminal->tprintf(
+                "\t\tAPIC (id = %u):\n",
+                current_thread->scheduler->local_timer->id.id);
+            active_terminal->tprintf(
+                "\t\t\t# of Tasks: %u\n",
+                current_thread->scheduler->local_timer->num_tasks());
+            active_terminal->tprintf(
+                "\t\t\tRate: %u hz\n",
+                current_thread->scheduler->local_timer->apic_rate);
+            active_terminal->tprintf(
+                "\t\t\tCurrent time: %u ticks\n",
+                current_thread->scheduler->local_timer->now());
+            active_terminal->tprintf(
+                "\t\t\tTime till next event: %u ticks\n",
+                current_thread->scheduler->local_timer->time_to_next());
+        }
+
+        // Print system state
+        active_terminal->tprintf("System Scheduler:\n");
+        active_terminal->tprintf("\tLock State: ");
+        active_terminal->tprintf((threading::system_scheduler.lock.is_locked()
+                                      ? "True\n"
+                                      : "False\n"));
+        active_terminal->tprintf("\tPaused: ");
+        active_terminal->tprintf(
+            (threading::system_scheduler.paused ? "True\n" : "False\n"));
+        active_terminal->tprintf("\tWaiting Processes:\n");
+        for (unsigned int i = 0; i < threading::system_scheduler.size(); i++) {
+            active_terminal->tprintf(
+                "\t\t#%u - pid %u\n", i,
+                threading::system_scheduler.run_queue.base[i]->pid);
+        }
+
+        return 0;
+
+    } else {
+        active_terminal->tprintf("Unrecognized keyword.\n");
+        return 1;
+    }
+}
 } // namespace commands
 } // namespace kernel

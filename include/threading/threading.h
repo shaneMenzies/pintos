@@ -109,12 +109,13 @@ extern class process_list_t {
 extern struct system_scheduler_t {
     std_k::queue<process*> run_queue;
     std_k::mutex           lock;
+    bool                   paused = false;
 
     bool   empty() const { return run_queue.empty(); }
     size_t size() const { return run_queue.size(); }
 
     process* get() {
-        if (empty()) { return nullptr; }
+        if (empty() || paused) { return nullptr; }
 
         lock.lock();
         process* target = nullptr;
